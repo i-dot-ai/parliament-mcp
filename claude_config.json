@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "parliament-mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8080/mcp/",
+        "--allow-http",
+        "--debug"
+      ]
+    }
+  }
+}

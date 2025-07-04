@@ -1,0 +1,33 @@
+[project]
+name = "parliament-mcp-server"
+version = "0.1.0"
+description = "MCP Server for UK Parliamentary data"
+authors = [{name = "i.AI", email = "i-dot-ai-enquiries@cabinetoffice.gov.uk"}]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "parliament-mcp",
+    "sentry-sdk>=2.18.0",
+    "pyjwt>=2.9.0",
+    "cryptography>=44.0.1",
+    "mcp[cli]>=1.9.4",
+    "fastapi[standard]>=0.115.13",
+    "uvicorn>=0.34.3",
+]
+
+[tool.uv.sources]
+parliament-mcp = { path = "../", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "openai-agents>=0.0.19",
+    "ipykernel>=6.29.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

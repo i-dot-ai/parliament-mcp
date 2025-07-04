@@ -1,0 +1,23 @@
+# Use the official AWS Lambda Python base image
+FROM public.ecr.aws/lambda/python:3.12
+
+# Set the working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV COLUMNS=120
+
+# Install uv
+RUN pip install uv
+
+# Copy the dependency definition files
+COPY uv.lock pyproject.toml ./
+COPY ./parliament_mcp ./parliament_mcp
+
+# Install the dependencies to system Python
+RUN uv pip install --system -r <(uv export --format requirements-txt --no-dev)
+
+# Set the command to run the handler
+CMD [ "parliament_mcp.lambda_handler.handler" ]
