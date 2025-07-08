@@ -10,7 +10,7 @@ class ParliamentMCPSettings(BaseSettings):
     ENVIRONMENT: str = "local"
     SENTRY_DSN: str | None = None
     AUTH_PROVIDER_PUBLIC_KEY: str | None = None
-    DISABLE_AUTH_SIGNATURE_VERIFICATION: bool | None = ENVIRONMENT in ["local", "integration-test"]
+    DISABLE_AUTH_SIGNATURE_VERIFICATION: bool = ENVIRONMENT == "local"
 
     AZURE_OPENAI_API_KEY: str
     AZURE_OPENAI_ENDPOINT: str

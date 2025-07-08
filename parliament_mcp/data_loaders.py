@@ -22,6 +22,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from parliament_mcp.elasticsearch_helpers import get_async_es_client
 from parliament_mcp.models import (
     ContributionsResponse,
     DebateParent,
@@ -362,3 +363,26 @@ class ElasticParliamentaryQuestionLoader(ElasticDataLoader):
                 self.progress.update(answered_task_id, total=total_results)
                 for skip in range(0, total_results, self.page_size):
                     tg.create_task(process_page(questions_answered_params | {"skip": skip}, answered_task_id))
+
+
+async def load_data(settings, source: str, from_date: str, to_date: str):
+    """Load data from specified source into Elasticsearch within date range.
+
+    Args:
+        settings: ParliamentMCPSettings instance
+        source: Data source - either "hansard" or "parliamentary-questions"
+        from_date: Start date in YYYY-MM-DD format
+        to_date: End date in YYYY-MM-DD format
+        elastic_client: Optional Elasticsearch client (will create one if not provided)
+    """
+
+    es_client = get_async_es_client(settings)
+
+    if source == "hansard":
+        loader = ElasticHansardLoader(elastic_client=es_client, index_name=settings.HANSARD_CONTRIBUTIONS_INDEX)
+        await loader.load_all_contributions(from_date, to_date)
+    elif source == "parliamentary-questions":
+        loader = ElasticParliamentaryQuestionLoader(
+            elastic_client=es_client, index_name=settings.PARLIAMENTARY_QUESTIONS_INDEX
+        )
+        await loader.load_questions_for_date_range(from_date, to_date)

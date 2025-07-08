@@ -185,3 +185,55 @@ async def create_default_index_template_if_none(es_client: AsyncElasticsearch, s
         )
     except Exception:
         logger.exception("Failed to create default index template")
+
+
+async def initialize_elasticsearch_indices(
+    es_client: AsyncElasticsearch,
+    settings: ParliamentMCPSettings,
+) -> None:
+    """
+    Initialize Elasticsearch with proper mappings and inference endpoints.
+
+    This function abstracts the common initialization logic used by both
+    the CLI and test fixtures.
+
+    Args:
+        es_client: AsyncElasticsearch client
+        settings: ParliamentMCPSettings instance
+    """
+    logger.info("Initializing Elasticsearch indices")
+
+    # Set default index template for single-node cluster
+    await create_default_index_template_if_none(es_client, settings)
+
+    # Create inference endpoints if using semantic text
+    await create_embedding_inference_endpoint_if_none(es_client, settings)
+
+    # Define mappings based on whether we're using semantic text
+    pq_mapping = {
+        "properties": {
+            "questionText": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+            },
+            "answerText": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+            },
+        }
+    }
+
+    hansard_mapping = {
+        "properties": {
+            "ContributionTextFull": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+            },
+        }
+    }
+
+    # Create indices with appropriate mappings
+    await create_index_if_none(es_client, settings.PARLIAMENTARY_QUESTIONS_INDEX, pq_mapping)
+    await create_index_if_none(es_client, settings.HANSARD_CONTRIBUTIONS_INDEX, hansard_mapping)
+
+    logger.info("Elasticsearch initialization complete.")

@@ -15,6 +15,9 @@ pre-commit:  ## Run pre-commit on all files
 test: install
 	uv run python -m pytest --cov=parliament_mcp -v --cov-report=term-missing --cov-fail-under=0
 
+test_integration: install
+	uv run python -m pytest -s -v --with-integration
+
 
 run_mcp_server:
 	cd mcp_server && uv run python app/main.py
