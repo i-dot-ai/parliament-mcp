@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import dateparser
 import dotenv
+from elasticsearch import AsyncElasticsearch
 from rich.logging import RichHandler
 
 from parliament_mcp.data_loaders import load_data
@@ -34,23 +35,21 @@ def configure_logging(level=logging.INFO, use_colors=True):
         logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
-async def delete_elasticsearch(settings: ParliamentMCPSettings):
+async def delete_elasticsearch(es_client: AsyncElasticsearch, settings: ParliamentMCPSettings):
     """Deletes Elasticsearch indices."""
     logger.info("Deleting Elasticsearch indices.")
-    async with get_async_es_client(settings) as es_client:
-        await delete_index_if_exists(es_client, settings.PARLIAMENTARY_QUESTIONS_INDEX)
-        await delete_index_if_exists(es_client, settings.HANSARD_CONTRIBUTIONS_INDEX)
-        await delete_inference_endpoint_if_exists(es_client, settings.EMBEDDING_INFERENCE_ENDPOINT_NAME)
+    await delete_index_if_exists(es_client, settings.PARLIAMENTARY_QUESTIONS_INDEX)
+    await delete_index_if_exists(es_client, settings.HANSARD_CONTRIBUTIONS_INDEX)
+    await delete_inference_endpoint_if_exists(es_client, settings.EMBEDDING_INFERENCE_ENDPOINT_NAME)
 
 
-async def init_elasticsearch(settings: ParliamentMCPSettings):
+async def init_elasticsearch(es_client: AsyncElasticsearch, settings: ParliamentMCPSettings):
     """Initialises Elasticsearch indices."""
     logger.info("Initialising Elasticsearch indices.")
-    async with get_async_es_client(settings) as es_client:
-        await initialize_elasticsearch_indices(es_client, settings)
+    await initialize_elasticsearch_indices(es_client, settings)
 
 
-def main():
+async def cli_main():
     """CLI entry point that parses arguments and runs commands."""
     # Configure logging for CLI usage
     parser = argparse.ArgumentParser(description="Parliament MCP CLI tool.")
@@ -88,19 +87,23 @@ def main():
 
     configure_logging(level=args.log_level)
 
-    if args.command == "init-elasticsearch":
-        asyncio.run(init_elasticsearch(settings))
-    elif args.command == "delete-elasticsearch":
-        asyncio.run(delete_elasticsearch(settings))
-    elif args.command == "load-data":
-        asyncio.run(
-            load_data(
+    async with get_async_es_client(settings) as es_client:
+        if args.command == "init-elasticsearch":
+            await init_elasticsearch(es_client, settings)
+        elif args.command == "delete-elasticsearch":
+            await delete_elasticsearch(es_client, settings)
+        elif args.command == "load-data":
+            await load_data(
+                es_client,
                 settings,
                 args.source,
                 args.from_date.strftime("%Y-%m-%d"),
                 args.to_date.strftime("%Y-%m-%d"),
             )
-        )
+
+
+def main():
+    asyncio.run(cli_main())
 
 
 if __name__ == "__main__":

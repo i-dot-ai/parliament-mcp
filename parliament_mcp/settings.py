@@ -29,6 +29,7 @@ class ParliamentMCPSettings(BaseSettings):
     ELASTICSEARCH_SCHEME: str = "http"
 
     # Set to 0 for single-node cluster
+    ELASTICSEARCH_INDEX_PATTERN: str = "parliament_mcp_*"
     ELASTICSEARCH_NUMBER_OF_REPLICAS: int = 0
 
     EMBEDDING_INFERENCE_ENDPOINT_NAME: str = "openai-embedding-inference"

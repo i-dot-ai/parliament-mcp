@@ -19,6 +19,9 @@ test_integration: install
 	uv run python -m pytest -s -v --with-integration
 
 
+run_elasticsearch:
+	docker compose up -d elasticsearch --wait
+
 run_mcp_server:
 	cd mcp_server && uv run python app/main.py
 
@@ -64,6 +67,9 @@ load_data_since_2020: init_elasticsearch
 ingest_daily: init_elasticsearch
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "2 days ago" --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "2 days ago" --to-date "today"
+
+delete_elasticsearch_data:
+	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-elasticsearch
 
 # MCP Development Commands
 .PHONY: mcp_test

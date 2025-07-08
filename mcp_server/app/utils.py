@@ -7,11 +7,7 @@ from typing import Any
 
 from pydantic.fields import FieldInfo
 
-from parliament_mcp.data_loaders import http_client
-from parliament_mcp.elasticsearch_helpers import get_async_es_client
-from parliament_mcp.settings import settings
-
-es_client = get_async_es_client(settings)
+from parliament_mcp.data_loaders import cached_limited_get
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +137,7 @@ async def request_members_api(
 
     async with members_api_semaphore:
         try:
-            response = await http_client.get(
+            response = await cached_limited_get(
                 url,
                 headers={
                     "Accept": "application/json",

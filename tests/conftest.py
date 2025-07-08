@@ -98,10 +98,10 @@ async def es_test_client(
 
         # pytest warning (shows with -W flag)
         warnings.warn(
-            "First-time test setup: Loading Parliamentary data will take 2-5 minutes. "
-            "This only happens once - subsequent runs will be fast.",
+            "First-time test setup: Loading Parliamentary data. This will take a few minutes. "
+            "This only happens once - subsequent runs will be faster.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=0,
         )
 
         # Initialize Elasticsearch indices and inference endpoints using the shared abstraction
@@ -111,9 +111,9 @@ async def es_test_client(
 
         # Load minimal test data
         # Load Hansard - Monday to Wednesday
-        await load_data(settings, "hansard", "2025-06-23", "2025-06-25")
+        await load_data(es_client, settings, "hansard", "2025-06-23", "2025-06-25")
 
         # Load Parliamentary Questions - Monday only
-        await load_data(settings, "parliamentary-questions", "2025-06-23", "2025-06-23")
+        await load_data(es_client, settings, "parliamentary-questions", "2025-06-23", "2025-06-23")
 
         yield es_client
