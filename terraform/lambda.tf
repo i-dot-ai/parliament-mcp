@@ -1,5 +1,5 @@
 module "parliament_mcp_ingest_lambda" {
-  source = "git::https://github.com/i-dot-ai/i-dot-ai-core-terraform-modules.git//modules/infrastructure/lambda?ref=v1.2.0-lambda"
+  source = "git::https://github.com/i-dot-ai/i-dot-ai-core-terraform-modules.git//modules/infrastructure/lambda?ref=v2.0.1-lambda"
 
   image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com/parliament-mcp-lambda:${var.image_tag}"
   image_config = {
