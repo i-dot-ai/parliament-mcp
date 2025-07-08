@@ -8,7 +8,6 @@ module "parliament_mcp_ingest_lambda" {
   policies                       = [jsonencode(data.aws_iam_policy_document.parliament_mcp_secrets_manager.json)]
   package_type                   = "Image"
   function_name                  = "${local.name}-parliament-mcp-ingest"
-  iam_role_name                  = "${local.name}-parliament-mcp-ingest-lambda-role"
   timeout                        = 900
   memory_size                    = 1024
   aws_security_group_ids         = [aws_security_group.parliament_mcp_security_group.id]
