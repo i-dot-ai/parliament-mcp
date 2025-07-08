@@ -19,7 +19,7 @@ async def test_search_parliamentary_questions(es_test_client: AsyncElasticsearch
         dateTo="2025-06-25",
     )
     assert results is not None
-    assert len(results) >= 0
+    assert len(results) > 0
 
     results = await search_parliamentary_questions(
         es_client=es_test_client,
@@ -28,7 +28,7 @@ async def test_search_parliamentary_questions(es_test_client: AsyncElasticsearch
     )
     assert results is not None
     # May be 0 if no matching data in test set
-    assert len(results) >= 0
+    assert len(results) > 0
 
 
 @pytest.mark.asyncio
@@ -42,7 +42,7 @@ async def test_search_hansard_contributions(es_test_client: AsyncElasticsearch):
         query="debate",  # More generic query likely to match test data
     )
     assert results is not None
-    assert len(results) >= 0
+    assert len(results) > 0
 
 
 @pytest.mark.asyncio
@@ -50,15 +50,15 @@ async def test_search_hansard_contributions(es_test_client: AsyncElasticsearch):
 async def test_search_hansard_contributions_with_member_id(es_test_client: AsyncElasticsearch):
     """Test Hansard contributions search with member ID."""
 
-    # Test with a memberId (Keir Starmer)
+    # Test with a memberId (Deputy PM Angela Rayner stood in for PM in PMQs)
     results = await search_hansard_contributions(
         es_client=es_test_client,
         index=settings.HANSARD_CONTRIBUTIONS_INDEX,
-        memberId=4514,
+        memberId=4356,
         maxResults=10,
     )
     assert results is not None
-    assert len(results) >= 0  # May be 0 if this member didn't speak in test data
+    assert len(results) > 0, "No results found"
 
 
 @pytest.mark.asyncio
@@ -71,11 +71,11 @@ async def test_search_debates(es_test_client: AsyncElasticsearch):
         date_to="2025-06-25",
     )
     assert results is not None
-    assert len(results) >= 0
+    assert len(results) > 0
 
 
 @pytest.mark.asyncio
-# @pytest.mark.integration
+@pytest.mark.integration
 async def test_pmqs_are_on_wednesdays(es_test_client: AsyncElasticsearch):
     """Test that PMQs are on Wednesdays."""
     results = await search_debates(

@@ -72,10 +72,11 @@ git checkout -b name-of-your-bugfix-or-feature
 7. Before committing, run the quality checks:
 
 ```bash
-make lint      # Check code formatting
-make test      # Run unit tests
-make safe      # Run security checks
-make format    # Format code
+make lint               # Check code formatting
+make test               # Run unit tests
+make test_integration   # Run integration tests (slow on first run)
+make safe               # Run security checks
+make format             # Format code
 ```
 
 8. Test your MCP server changes:
