@@ -15,6 +15,8 @@ module "parliament_mcp_ingest_lambda" {
   account_id                     = data.aws_caller_identity.current.account_id
   reserved_concurrent_executions = -1
   permissions_boundary_name      = "infra/${local.name}-perms-boundary-app"
+  # Runs every day at 05:00 UTC
+  schedule                       = "cron(0 5 ? * * *)"
 }
 
 data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
@@ -46,58 +48,4 @@ resource "aws_security_group_rule" "parliament_mcp_ingest_lambda_to_443_egress" 
   cidr_blocks       = ["0.0.0.0/0"]
   ipv6_cidr_blocks  = ["::/0"]
   security_group_id = aws_security_group.parliament_mcp_security_group.id
-}
-
-resource "aws_scheduler_schedule" "parliament_mcp_ingest_schedule" {
-  name = "${local.name}-parliament-mcp-ingest-schedule"
-  flexible_time_window {
-    mode = "OFF"
-  }
-  # Runs every day at 05:00 UTC
-  schedule_expression = "cron(0 5 ? * * *)"
-  target {
-    arn      = module.parliament_mcp_ingest_lambda.arn
-    role_arn = aws_iam_role.parliament_mcp_scheduler_role.arn
-
-    input = jsonencode({
-      from_date = null,
-      to_date   = null
-    })
-  }
-}
-
-resource "aws_iam_role" "parliament_mcp_scheduler_role" {
-  name = "${local.name}-parliament-mcp-scheduler-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "scheduler.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "parliament_mcp_scheduler_lambda_policy" {
-  name = "${local.name}-parliament-mcp-scheduler-lambda-policy"
-  role = aws_iam_role.parliament_mcp_scheduler_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Resource = [
-          module.parliament_mcp_ingest_lambda.arn
-        ]
-      }
-    ]
-  })
 }
