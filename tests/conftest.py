@@ -51,8 +51,8 @@ def ensure_docker_connection():
 
     msg = "Failed to connect to Docker. Please check that Docker is running and that the Docker socket is accessible."
     msg += "You can try setting the DOCKER_HOST environment variable to a valid socket path."
-    msg += "For example, on macOS, you can try setting it to /Users/mark.dunne/.docker/run/docker.sock"
-    msg += "or /Users/mark.dunne/.colima/docker.sock"
+    msg += "For example, on macOS, you can try setting it to ~/.docker/run/docker.sock"
+    msg += "or ~/.colima/docker.sock"
     msg += "or /var/run/docker.sock"
     msg += "or /run/docker.sock"
     msg += "or /var/run/docker.sock.1"
