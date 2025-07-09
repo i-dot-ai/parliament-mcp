@@ -34,10 +34,15 @@ dependencies = [
     "pyjwt>=2.9.0",
     "cryptography>=44.0.1",
     "aiolimiter>=1.2.1",
+    "sentry-sdk>=2.18.0",
+    "mcp[cli]>=1.9.4",
+    "fastapi[standard]>=0.115.13",
+    "uvicorn>=0.34.3",
 ]
 
 [project.scripts]
 parliament-mcp = "parliament_mcp.cli:main"
+parliament-mcp-server = "parliament_mcp.mcp_server.main:app"
 
 [dependency-groups]
 dev = [
@@ -126,9 +131,9 @@ known-first-party = ["parliament_mcp"]
 "tests/*" = ["S101", "S104", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003", "S311"]
 "*/tests/*" = ["S101", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003"]
 # API files need to match external API parameter names
-"mcp_server/app/api.py" = ["N803", "A002", "E501", "N806"]  # Allow non-snake_case args, shadowing builtins, long lines, and non lowercase variables
-"mcp_server/app/handlers.py" = ["N803", "A001"]  # Allow non-snake_case args and shadowing builtins
-"mcp_server/app/main.py" = ["ARG001"]  # Allow unused args in FastAPI lifespan
+"parliament_mcp/mcp_server/api.py" = ["N803", "A002", "E501", "N806"]  # Allow non-snake_case args, shadowing builtins, long lines, and non lowercase variables
+"parliament_mcp/mcp_server/handlers.py" = ["N803", "A001"]  # Allow non-snake_case args and shadowing builtins
+"parliament_mcp/mcp_server/main.py" = ["ARG001"]  # Allow unused args in FastAPI lifespan
 "parliament_mcp/models.py" = ["N815", "FURB162"]  # Allow mixedCase, timezone handling
 "parliament_mcp/settings.py" = ["S104", "TD002", "TD003"]  # Allow binding all interfaces, TODO format
 "parliament_mcp/shared_utils/auth.py" = ["E501"]  # Allow longer lines in auth

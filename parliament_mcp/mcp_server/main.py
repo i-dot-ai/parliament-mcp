@@ -4,7 +4,7 @@ import contextlib
 import uvicorn
 from fastapi import FastAPI
 
-from mcp_server.app.api import mcp_server, settings
+from parliament_mcp.mcp_server.api import mcp_server, settings
 
 
 def create_app():

@@ -16,19 +16,12 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory
 WORKDIR /app
 
-# Copy the library package first (for better caching)
-COPY parliament_mcp parliament_mcp
+# Copy the entire package
 COPY pyproject.toml uv.lock ./
-
-# Copy service-specific files
-COPY mcp_server/ mcp_server/
-
-# Install service dependencies
-WORKDIR /app/mcp_server
+# Install dependencies
 RUN uv sync --frozen
 
-# Set Python path to include the app directory
-ENV PYTHONPATH=/app
+COPY parliament_mcp parliament_mcp
 
 # Command to run the MCP server
-CMD ["uv", "run", "python", "app/main.py", "--no-reload"]
+CMD ["uv", "run", "python", "-m", "parliament_mcp.mcp_server.main", "--no-reload"]

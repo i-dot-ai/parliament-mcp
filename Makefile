@@ -141,17 +141,17 @@ docker_build: ## Build the docker container for the specified service when runni
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
 		--cache-to type=local,dest=$(cache) \
 		--cache-from type=local,src=$(cache) -f Dockerfile.lambda .; \
-	else \
+	elif [ "$(service)" = "mcp-server" ]; then \
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
 		--cache-to type=local,dest=$(cache) \
-		--cache-from type=local,src=$(cache) -f $(service)/Dockerfile .; \
+		--cache-from type=local,src=$(cache) -f Dockerfile.mcp-server .; \
 	fi
 
 docker_build_local: ## Build the docker container for the specified service locally
 	@if [ "$(service)" = "lambda" ]; then \
 		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) -f Dockerfile.lambda .; \
-	else \
-		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) -f $(service)/Dockerfile .; \
+	elif [ "$(service)" = "mcp-server" ]; then \
+		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) -f Dockerfile.mcp-server .; \
 	fi
 
 docker_build_lambda: ## Build the docker container for the lambda function
