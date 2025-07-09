@@ -18,6 +18,8 @@ test: install
 test_integration: install
 	uv run python -m pytest -s -v --with-integration
 
+test_integration_cleanup:  ## Clean up files created by integration tests
+	rm -rf .cache .pytest_cache tests/.parliament-test-es-data
 
 run_elasticsearch:
 	docker compose up -d elasticsearch --wait
