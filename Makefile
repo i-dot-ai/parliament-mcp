@@ -25,7 +25,7 @@ run_elasticsearch:
 	docker compose up -d elasticsearch --wait
 
 run_mcp_server:
-	cd mcp_server && uv run python app/main.py
+	uv run parliament-mcp serve
 
 run:
 	docker compose up -d --wait
@@ -111,7 +111,6 @@ format:  ## Format and fix code
 .PHONY: safe
 safe:  ## Run security checks
 	uv run bandit -ll -r ./parliament_mcp
-	uv run bandit -ll -r ./mcp_server
 
 
 
