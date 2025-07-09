@@ -18,10 +18,10 @@ WORKDIR /app
 
 # Copy the entire package
 COPY pyproject.toml uv.lock ./
+COPY parliament_mcp parliament_mcp
+
 # Install dependencies
 RUN uv sync --frozen
-
-COPY parliament_mcp parliament_mcp
 
 # Command to run the MCP server
 CMD ["uv", "run", "parliament-mcp", "serve", "--no-reload"]
