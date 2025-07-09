@@ -83,23 +83,36 @@ async def cli_main():
         help="End date. Supports YYYY-MM-DD format or human-readable formats like 'today', 'yesterday', '1 week ago'. Defaults to today.",
     )
 
+    # Sub-parser for the 'serve' command
+    serve_parser = subparsers.add_parser("serve", help="Run the MCP server.")
+    serve_parser.add_argument(
+        "--no-reload", dest="reload", action="store_false", help="Disable auto-reload in development."
+    )
+    serve_parser.set_defaults(reload=True)
+
     args = parser.parse_args()
 
     configure_logging(level=args.log_level)
 
-    async with get_async_es_client(settings) as es_client:
-        if args.command == "init-elasticsearch":
-            await init_elasticsearch(es_client, settings)
-        elif args.command == "delete-elasticsearch":
-            await delete_elasticsearch(es_client, settings)
-        elif args.command == "load-data":
-            await load_data(
-                es_client,
-                settings,
-                args.source,
-                args.from_date.strftime("%Y-%m-%d"),
-                args.to_date.strftime("%Y-%m-%d"),
-            )
+    if args.command == "serve":
+        # Import here to avoid unnecessary dependencies
+        from parliament_mcp.mcp_server.main import main as mcp_main
+
+        mcp_main(reload=args.reload)
+    else:
+        async with get_async_es_client(settings) as es_client:
+            if args.command == "init-elasticsearch":
+                await init_elasticsearch(es_client, settings)
+            elif args.command == "delete-elasticsearch":
+                await delete_elasticsearch(es_client, settings)
+            elif args.command == "load-data":
+                await load_data(
+                    es_client,
+                    settings,
+                    args.source,
+                    args.from_date.strftime("%Y-%m-%d"),
+                    args.to_date.strftime("%Y-%m-%d"),
+                )
 
 
 def main():

@@ -42,7 +42,6 @@ dependencies = [
 
 [project.scripts]
 parliament-mcp = "parliament_mcp.cli:main"
-parliament-mcp-server = "parliament_mcp.mcp_server.main:app"
 
 [dependency-groups]
 dev = [
@@ -137,7 +136,7 @@ known-first-party = ["parliament_mcp"]
 "parliament_mcp/models.py" = ["N815", "FURB162"]  # Allow mixedCase, timezone handling
 "parliament_mcp/settings.py" = ["S104", "TD002", "TD003"]  # Allow binding all interfaces, TODO format
 "parliament_mcp/shared_utils/auth.py" = ["E501"]  # Allow longer lines in auth
-"parliament_mcp/cli.py" = ["E501"]  # Allow longer lines in CLI help text
+"parliament_mcp/cli.py" = ["E501", "PLC0415"]  # Allow longer lines in CLI help text, allow imports not at top of file
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

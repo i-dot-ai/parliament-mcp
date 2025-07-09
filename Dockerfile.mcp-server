@@ -24,4 +24,4 @@ RUN uv sync --frozen
 COPY parliament_mcp parliament_mcp
 
 # Command to run the MCP server
-CMD ["uv", "run", "python", "-m", "parliament_mcp.mcp_server.main", "--no-reload"]
+CMD ["uv", "run", "parliament-mcp", "serve", "--no-reload"]
