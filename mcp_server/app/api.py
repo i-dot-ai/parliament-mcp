@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import sentry_sdk
@@ -12,12 +14,20 @@ from parliament_mcp.settings import settings
 from . import handlers
 from .utils import log_tool_call, request_members_api, sanitize_params
 
-es_client = get_async_es_client(settings)
-
 logger = logging.getLogger(__name__)
 
 
-mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=True)
+@asynccontextmanager
+async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
+    """Manage application lifecycle with type-safe context"""
+    # Initialize on startup
+    async with get_async_es_client(settings) as es_client:
+        yield {
+            "es_client": es_client,
+        }
+
+
+mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=True, lifespan=mcp_lifespan)
 
 # init Sentry if configured
 if settings.SENTRY_DSN and settings.ENVIRONMENT in ["dev", "preprod", "prod"] and settings.SENTRY_DSN != "placeholder":
@@ -264,8 +274,9 @@ async def search_parliamentary_questions(
     - Provide a member name to search for all written questions by a specific member for all time
     - Provide a member id to search for all written questions by a specific member for all time
     """
+    ctx = mcp_server.get_context()
     result = await handlers.search_parliamentary_questions(
-        es_client=es_client,
+        es_client=ctx.lifespan_context["es_client"],
         index=settings.PARLIAMENTARY_QUESTIONS_INDEX,
         query=query,
         dateFrom=dateFrom,
@@ -316,8 +327,9 @@ async def search_debates(
     Returns:
         List of debate details dictionaries
     """
+    ctx = mcp_server.get_context()
     result = await handlers.search_debates(
-        es_client=es_client,
+        es_client=ctx.lifespan_context["es_client"],
         index=settings.HANSARD_CONTRIBUTIONS_INDEX,
         query=query,
         date_from=dateFrom,
@@ -372,8 +384,9 @@ async def search_contributions(
             - house: House of the contribution
             - member_id: ID of the member who made the contribution
     """
+    ctx = mcp_server.get_context()
     result = await handlers.search_hansard_contributions(
-        es_client=es_client,
+        es_client=ctx.lifespan_context["es_client"],
         index=settings.HANSARD_CONTRIBUTIONS_INDEX,
         query=query,
         memberId=memberId,

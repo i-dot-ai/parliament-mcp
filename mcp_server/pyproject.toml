@@ -23,6 +23,8 @@ dev = [
     "pytest-asyncio>=1.0.0",
     "openai-agents>=0.0.19",
     "ipykernel>=6.29.5",
+    "testcontainers[elasticsearch]>=4.10.0",
+    "pytest-integration-mark>=0.2.0",
 ]
 
 [build-system]

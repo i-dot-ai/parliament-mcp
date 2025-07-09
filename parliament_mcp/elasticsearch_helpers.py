@@ -1,4 +1,6 @@
+import contextlib
 import logging
+from collections.abc import AsyncGenerator
 
 from elasticsearch import AsyncElasticsearch, NotFoundError
 
@@ -7,7 +9,8 @@ from parliament_mcp.settings import ParliamentMCPSettings
 logger = logging.getLogger(__name__)
 
 
-def get_async_es_client(settings: ParliamentMCPSettings) -> AsyncElasticsearch:
+@contextlib.asynccontextmanager
+async def get_async_es_client(settings: ParliamentMCPSettings) -> AsyncGenerator[AsyncElasticsearch]:
     """Gets an async Elasticsearch client from environment variables.
 
     Supports both Elastic Cloud (via cloud_id and api_key) and
@@ -19,10 +22,11 @@ def get_async_es_client(settings: ParliamentMCPSettings) -> AsyncElasticsearch:
             "Connecting to Elasticsearch Cloud with cloud_id: %s",
             settings.ELASTICSEARCH_CLOUD_ID,
         )
-        return AsyncElasticsearch(
+        yield AsyncElasticsearch(
             cloud_id=settings.ELASTICSEARCH_CLOUD_ID,
             api_key=settings.ELASTICSEARCH_API_KEY,
             request_timeout=30,
+            node_class="httpxasync",
         )
     # Fall back to host/port connection
     else:
@@ -32,7 +36,7 @@ def get_async_es_client(settings: ParliamentMCPSettings) -> AsyncElasticsearch:
             settings.ELASTICSEARCH_HOST,
             settings.ELASTICSEARCH_PORT,
         )
-        return AsyncElasticsearch(
+        yield AsyncElasticsearch(
             hosts=[
                 {
                     "scheme": settings.ELASTICSEARCH_SCHEME,
@@ -41,6 +45,7 @@ def get_async_es_client(settings: ParliamentMCPSettings) -> AsyncElasticsearch:
                 }
             ],
             request_timeout=30,
+            node_class="httpxasync",
         )
 
 
@@ -60,16 +65,18 @@ async def inference_exists(es_client: AsyncElasticsearch, inference_id: str) -> 
 
 
 async def create_index_if_none(
-    es_client: AsyncElasticsearch,
-    index_name: str,
-    mappings: dict | str | None = None,
+    es_client: AsyncElasticsearch, index_name: str, mappings: dict | str | None = None, replicas: int = 1
 ):
     """Create Elasticsearch index if it doesn't exist."""
 
     logger.info("Creating index - %s", index_name)
 
     if not await index_exists(es_client, index_name):
-        await es_client.indices.create(index=index_name, mappings=mappings)
+        await es_client.indices.create(
+            index=index_name,
+            mappings=mappings,
+            settings={"number_of_replicas": replicas},
+        )
         logger.info("Created index - %s", index_name)
     else:
         logger.info("Index already exists - %s", index_name)
@@ -156,32 +163,60 @@ async def delete_inference_endpoint_if_exists(es_client: AsyncElasticsearch, inf
         logger.info("Inference endpoint not found - %s", inference_id)
 
 
-async def create_default_index_template_if_none(es_client: AsyncElasticsearch, settings: ParliamentMCPSettings) -> None:
+async def initialize_elasticsearch_indices(
+    es_client: AsyncElasticsearch,
+    settings: ParliamentMCPSettings,
+) -> None:
     """
-    Create a default index template with 0 replicas for single-node clusters.
+    Initialize Elasticsearch with proper mappings and inference endpoints.
+
+    This function abstracts the common initialization logic used by both
+    the CLI and test fixtures.
 
     Args:
         es_client: AsyncElasticsearch client
         settings: ParliamentMCPSettings instance
     """
-    try:
-        # Check if the default template already exists
-        index_templates = await es_client.indices.get_index_template()
-        if "default_template" in [template["name"] for template in index_templates.get("index_templates", [])]:
-            logger.info("Default index template already exists.")
-            return
+    logger.info("Initializing Elasticsearch indices")
 
-        await es_client.indices.put_index_template(
-            name="default_template",
-            body={
-                "index_patterns": ["*"],
-                "priority": 1,
-                "template": {"settings": {"number_of_replicas": settings.ELASTICSEARCH_NUMBER_OF_REPLICAS}},
+    # Create inference endpoints if using semantic text
+    await create_embedding_inference_endpoint_if_none(es_client, settings)
+
+    # Define mappings based on whether we're using semantic text
+    pq_mapping = {
+        "properties": {
+            "questionText": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
             },
-        )
-        logger.info(
-            "Created default index template with %s replicas for single-node cluster.",
-            settings.ELASTICSEARCH_NUMBER_OF_REPLICAS,
-        )
-    except Exception:
-        logger.exception("Failed to create default index template")
+            "answerText": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+            },
+        }
+    }
+
+    hansard_mapping = {
+        "properties": {
+            "ContributionTextFull": {
+                "type": "semantic_text",
+                "inference_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+            },
+        }
+    }
+
+    # Create indices with appropriate mappings
+    await create_index_if_none(
+        es_client,
+        settings.PARLIAMENTARY_QUESTIONS_INDEX,
+        pq_mapping,
+        replicas=settings.ELASTICSEARCH_NUMBER_OF_REPLICAS,
+    )
+    await create_index_if_none(
+        es_client,
+        settings.HANSARD_CONTRIBUTIONS_INDEX,
+        hansard_mapping,
+        replicas=settings.ELASTICSEARCH_NUMBER_OF_REPLICAS,
+    )
+
+    logger.info("Elasticsearch initialization complete.")

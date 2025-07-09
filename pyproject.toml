@@ -55,6 +55,9 @@ dev = [
     "ipykernel>=6.29.5",
     "pre-commit>=4.0.0",
     "openai-agents>=0.1.0",
+    "testcontainers[elasticsearch]>=4.10.0",
+    "pytest-integration-mark>=0.2.0",
+    "sentry-sdk>=2.18.0",
 ]
 
 [build-system]
@@ -120,7 +123,7 @@ ignore = ["COM812", "DJ001", "RET505", "RET508", "PLR0913"]
 known-first-party = ["parliament_mcp"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003", "S311"]
+"tests/*" = ["S101", "S104", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003", "S311"]
 "*/tests/*" = ["S101", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003"]
 # API files need to match external API parameter names
 "mcp_server/app/api.py" = ["N803", "A002", "E501", "N806"]  # Allow non-snake_case args, shadowing builtins, long lines, and non lowercase variables
@@ -130,3 +133,8 @@ known-first-party = ["parliament_mcp"]
 "parliament_mcp/settings.py" = ["S104", "TD002", "TD003"]  # Allow binding all interfaces, TODO format
 "parliament_mcp/shared_utils/auth.py" = ["E501"]  # Allow longer lines in auth
 "parliament_mcp/cli.py" = ["E501"]  # Allow longer lines in CLI help text
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

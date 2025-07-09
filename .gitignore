@@ -50,3 +50,5 @@ Thumbs.db
 # other
 .coverage
 .terraform
+.cache
+.parliament-test-es-data

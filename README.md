@@ -165,11 +165,12 @@ Claude should now have access to the Parliament MCP tools.
 
 3. **Available Make commands**:
    ```bash
-   make install          # Install all dependencies
-   make test            # Run tests
-   make lint            # Check code formatting
-   make format          # Format and fix code
-   make safe            # Run security checks
+   make install           # Install all dependencies
+   make test              # Run tests
+   make test_integration  # Run integration tests (slow on first run)
+   make lint              # Check code formatting
+   make format            # Format and fix code
+   make safe              # Run security checks
 
    # Pre-commit hooks
    make pre-commit-install  # Install pre-commit hooks

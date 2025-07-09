@@ -15,6 +15,14 @@ pre-commit:  ## Run pre-commit on all files
 test: install
 	uv run python -m pytest --cov=parliament_mcp -v --cov-report=term-missing --cov-fail-under=0
 
+test_integration: install
+	uv run python -m pytest -s -v --with-integration
+
+test_integration_cleanup:  ## Clean up files created by integration tests
+	rm -rf .cache .pytest_cache tests/.parliament-test-es-data
+
+run_elasticsearch:
+	docker compose up -d elasticsearch --wait
 
 run_mcp_server:
 	cd mcp_server && uv run python app/main.py
@@ -61,6 +69,9 @@ load_data_since_2020: init_elasticsearch
 ingest_daily: init_elasticsearch
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "2 days ago" --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "2 days ago" --to-date "today"
+
+delete_elasticsearch_data:
+	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-elasticsearch
 
 # MCP Development Commands
 .PHONY: mcp_test
