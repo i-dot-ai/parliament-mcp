@@ -68,7 +68,7 @@ async def load_section_trees(date: str, house: Literal["Commons", "Lords"]) -> d
         house: The house to load the debate hierarchy for.
 
     Returns:
-        A dictionary of debate parents.
+        A dictionary of debate parents. Maps both the section id and the external id to the section data.
     """
     url = f"{HANSARD_BASE_URL}/overview/sectionsforday.json"
     response = await cached_limited_get(url, params={"house": house, "date": date})
@@ -85,7 +85,12 @@ async def load_section_trees(date: str, house: Literal["Commons", "Lords"]) -> d
             section_tree_items.extend(item.get("SectionTreeItems", []))
 
     # Create a mapping of ID to item for easy lookup
-    return {item["Id"]: item for item in section_tree_items}
+    # Map both the section id and the external id to the section data
+    section_tree_map = {}
+    for item in section_tree_items:
+        section_tree_map[item["Id"]] = item
+        section_tree_map[item["ExternalId"]] = item
+    return section_tree_map
 
 
 class ElasticDataLoader:
@@ -191,7 +196,11 @@ class ElasticHansardLoader(ElasticDataLoader):
 
         url = f"{HANSARD_BASE_URL}/search/contributions/{contribution_type}.json"
         total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0})
-        task = self.progress.add_task(f"Loading '{contribution_type}' contributions", total=total_results, completed=0)
+        task = self.progress.add_task(
+            f"Loading '{contribution_type}' contributions",
+            total=total_results,
+            completed=0,
+        )
         if total_results == 0:
             self.progress.update(task, completed=total_results)
             return
@@ -213,7 +222,7 @@ class ElasticHansardLoader(ElasticDataLoader):
                         contribution.debate_parents = await self.get_debate_parents(
                             contribution.SittingDate.strftime("%Y-%m-%d"),
                             contribution.House,
-                            contribution.DebateSectionId,
+                            contribution.DebateSectionExtId,
                         )
 
                     await self.store_in_elastic(valid_contributions)
@@ -227,19 +236,25 @@ class ElasticHansardLoader(ElasticDataLoader):
                 tg.create_task(process_page(base_params | {"take": self.page_size, "skip": skip}))
 
     async def get_debate_parents(
-        self, date: str, house: Literal["Commons", "Lords"], debate_section_id: int
+        self, date: str, house: Literal["Commons", "Lords"], debate_ext_id: str
     ) -> list[DebateParent]:
         """Retrieve parent debate hierarchy for a contribution."""
+
         try:
             section_tree_for_date = await load_section_trees(date, house)
+
+            # use the external id rather than the section id because external ids are more stable
+            next_id = debate_ext_id
             debate_parents = []
-            next_id = debate_section_id
             while next_id is not None:
                 parent = DebateParent.model_validate(section_tree_for_date[next_id])
                 debate_parents.append(parent)
                 next_id = parent.ParentId
         except Exception:
-            logger.exception("Failed to get debate parents for debate section - %s", debate_section_id)
+            logger.exception(
+                "Failed to get debate parents for debate id - %s",
+                debate_ext_id,
+            )
             return []
         else:
             return debate_parents
@@ -363,7 +378,11 @@ class ElasticParliamentaryQuestionLoader(ElasticDataLoader):
 
 
 async def load_data(
-    es_client: AsyncElasticsearch, settings: ParliamentMCPSettings, source: str, from_date: str, to_date: str
+    es_client: AsyncElasticsearch,
+    settings: ParliamentMCPSettings,
+    source: str,
+    from_date: str,
+    to_date: str,
 ):
     """Load data from specified source into Elasticsearch within date range.
 
