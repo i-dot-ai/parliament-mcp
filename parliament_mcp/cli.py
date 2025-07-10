@@ -49,9 +49,8 @@ async def init_elasticsearch(es_client: AsyncElasticsearch, settings: Parliament
     await initialize_elasticsearch_indices(es_client, settings)
 
 
-async def cli_main():
-    """CLI entry point that parses arguments and runs commands."""
-    # Configure logging for CLI usage
+def create_parser():
+    """Create and return the argument parser."""
     parser = argparse.ArgumentParser(description="Parliament MCP CLI tool.")
     parser.add_argument(
         "--log-level", "--ll", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="WARNING"
@@ -90,8 +89,30 @@ async def cli_main():
     )
     serve_parser.set_defaults(reload=True)
 
-    args = parser.parse_args()
+    return parser
 
+
+async def async_cli_main(args):
+    """Handle async CLI commands."""
+    async with get_async_es_client(settings) as es_client:
+        if args.command == "init-elasticsearch":
+            await init_elasticsearch(es_client, settings)
+        elif args.command == "delete-elasticsearch":
+            await delete_elasticsearch(es_client, settings)
+        elif args.command == "load-data":
+            await load_data(
+                es_client,
+                settings,
+                args.source,
+                args.from_date.strftime("%Y-%m-%d"),
+                args.to_date.strftime("%Y-%m-%d"),
+            )
+
+
+def main():
+    """CLI entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
     configure_logging(level=args.log_level)
 
     if args.command == "serve":
@@ -100,23 +121,8 @@ async def cli_main():
 
         mcp_main(reload=args.reload)
     else:
-        async with get_async_es_client(settings) as es_client:
-            if args.command == "init-elasticsearch":
-                await init_elasticsearch(es_client, settings)
-            elif args.command == "delete-elasticsearch":
-                await delete_elasticsearch(es_client, settings)
-            elif args.command == "load-data":
-                await load_data(
-                    es_client,
-                    settings,
-                    args.source,
-                    args.from_date.strftime("%Y-%m-%d"),
-                    args.to_date.strftime("%Y-%m-%d"),
-                )
-
-
-def main():
-    asyncio.run(cli_main())
+        # Handle async commands
+        asyncio.run(async_cli_main(args))
 
 
 if __name__ == "__main__":
