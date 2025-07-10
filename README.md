@@ -190,7 +190,7 @@ Claude should now have access to the Parliament MCP tools.
    ```bash
    make run_mcp_server
    # Or directly with uv:
-   cd mcp_server && uv run python app/main.py
+   uv run parliament-mcp serve
    ```
 
 ### Project Structure
@@ -200,21 +200,30 @@ parliament-mcp/
 ├── parliament_mcp/           # Main Python package
 │   ├── cli.py               # CLI interface
 │   ├── models.py            # Data models
+│   ├── mcp_server/          # MCP server implementation
+│   │   ├── api.py           # API endpoints and tool definitions
+│   │   ├── handlers.py      # Elasticsearch query handlers
+│   │   ├── main.py          # FastAPI application setup
+│   │   └── utils.py         # Utility functions
 │   └── ...                  # Other modules
-├── mcp_server/              # MCP server application
-│   ├── app/                 # Server implementation
-│   └── Dockerfile           # Container configuration
+├── tests/                   # Test suite
+│   ├── mcp_server/          # MCP server tests
+│   └── ...                  # Other tests
+├── Dockerfile.mcp-server    # MCP server container configuration
 ├── docker-compose.yaml      # Service orchestration
 └── README.md                # This file
 ```
 
 ### CLI Commands
 
-The project includes a CLI for data management:
+The project includes a unified CLI for data management and server operations:
 
 ```bash
 # Initialize Elasticsearch indices and inference endpoints
 parliament-mcp init-elasticsearch
+
+# Run the MCP server
+parliament-mcp serve
 
 # Load data with flexible date parsing
 parliament-mcp load-data hansard --from-date "3 days ago" --to-date "today"

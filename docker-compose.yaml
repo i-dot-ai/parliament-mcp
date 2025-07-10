@@ -24,7 +24,7 @@ services:
   mcp-server:
     build:
       context: .
-      dockerfile: ./mcp_server/Dockerfile
+      dockerfile: ./Dockerfile.mcp-server
     container_name: mcp-server
     ports:
       - "${MCP_PORT}:${MCP_PORT}"

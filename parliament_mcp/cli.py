@@ -49,9 +49,8 @@ async def init_elasticsearch(es_client: AsyncElasticsearch, settings: Parliament
     await initialize_elasticsearch_indices(es_client, settings)
 
 
-async def cli_main():
-    """CLI entry point that parses arguments and runs commands."""
-    # Configure logging for CLI usage
+def create_parser():
+    """Create and return the argument parser."""
     parser = argparse.ArgumentParser(description="Parliament MCP CLI tool.")
     parser.add_argument(
         "--log-level", "--ll", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="WARNING"
@@ -83,10 +82,18 @@ async def cli_main():
         help="End date. Supports YYYY-MM-DD format or human-readable formats like 'today', 'yesterday', '1 week ago'. Defaults to today.",
     )
 
-    args = parser.parse_args()
+    # Sub-parser for the 'serve' command
+    serve_parser = subparsers.add_parser("serve", help="Run the MCP server.")
+    serve_parser.add_argument(
+        "--no-reload", dest="reload", action="store_false", help="Disable auto-reload in development."
+    )
+    serve_parser.set_defaults(reload=True)
 
-    configure_logging(level=args.log_level)
+    return parser
 
+
+async def async_cli_main(args):
+    """Handle async CLI commands."""
     async with get_async_es_client(settings) as es_client:
         if args.command == "init-elasticsearch":
             await init_elasticsearch(es_client, settings)
@@ -103,7 +110,19 @@ async def cli_main():
 
 
 def main():
-    asyncio.run(cli_main())
+    """CLI entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
+    configure_logging(level=args.log_level)
+
+    if args.command == "serve":
+        # Import here to avoid unnecessary dependencies
+        from parliament_mcp.mcp_server.main import main as mcp_main
+
+        mcp_main(reload=args.reload)
+    else:
+        # Handle async commands
+        asyncio.run(async_cli_main(args))
 
 
 if __name__ == "__main__":

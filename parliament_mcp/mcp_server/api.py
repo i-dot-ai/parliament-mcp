@@ -275,8 +275,10 @@ async def search_parliamentary_questions(
     - Provide a member id to search for all written questions by a specific member for all time
     """
     ctx = mcp_server.get_context()
+    # Access es_client through request_context.lifespan_context
+    es_client = ctx.request_context.lifespan_context["es_client"]
     result = await handlers.search_parliamentary_questions(
-        es_client=ctx.lifespan_context["es_client"],
+        es_client=es_client,
         index=settings.PARLIAMENTARY_QUESTIONS_INDEX,
         query=query,
         dateFrom=dateFrom,
@@ -328,8 +330,10 @@ async def search_debates(
         List of debate details dictionaries
     """
     ctx = mcp_server.get_context()
+    # Access es_client through request_context.lifespan_context
+    es_client = ctx.request_context.lifespan_context["es_client"]
     result = await handlers.search_debates(
-        es_client=ctx.lifespan_context["es_client"],
+        es_client=es_client,
         index=settings.HANSARD_CONTRIBUTIONS_INDEX,
         query=query,
         date_from=dateFrom,
@@ -385,8 +389,10 @@ async def search_contributions(
             - member_id: ID of the member who made the contribution
     """
     ctx = mcp_server.get_context()
+    # Access es_client through request_context.lifespan_context
+    es_client = ctx.request_context.lifespan_context["es_client"]
     result = await handlers.search_hansard_contributions(
-        es_client=ctx.lifespan_context["es_client"],
+        es_client=es_client,
         index=settings.HANSARD_CONTRIBUTIONS_INDEX,
         query=query,
         memberId=memberId,
