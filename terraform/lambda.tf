@@ -15,8 +15,8 @@ module "parliament_mcp_ingest_lambda" {
   account_id                     = data.aws_caller_identity.current.account_id
   reserved_concurrent_executions = -1
   permissions_boundary_name      = "infra/${local.name}-perms-boundary-app"
-  # Runs every day at 05:00 UTC
-  schedule                       = "cron(0 5 ? * * *)"
+  # Only schedule in prod, disabled in dev
+  schedule                       = terraform.workspace == "prod" ? "cron(0 5 ? * * *)" : null
 }
 
 data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
