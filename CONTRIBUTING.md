@@ -103,9 +103,9 @@ When contributing to the MCP server functionality, please follow these additiona
 
 ## Adding New MCP Tools
 
-1. **Tool Definition**: Add new tools to `mcp_server/app/handlers.py` following the existing pattern
-2. **Handler Implementation**: Implement the actual functionality in the appropriate handler function
-3. **Testing**: Add tests to `mcp_server/tests/` for any new tools or handlers
+1. **Tool Definition**: Add new tools to `parliament_mcp/mcp_server/api.py` following the existing pattern
+2. **Handler Implementation**: Implement the actual functionality in `parliament_mcp/mcp_server/handlers.py`
+3. **Testing**: Add tests to `tests/mcp_server/` for any new tools or handlers
 4. **Documentation**: Update the README.md to document the new tool in the "MCP Tools Available" section
 
 ## Data Loading and Elasticsearch

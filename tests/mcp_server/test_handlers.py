@@ -3,7 +3,11 @@ from datetime import UTC, datetime
 import pytest
 from elasticsearch import AsyncElasticsearch
 
-from mcp_server.app.handlers import search_debates, search_hansard_contributions, search_parliamentary_questions
+from parliament_mcp.mcp_server.handlers import (
+    search_debates,
+    search_hansard_contributions,
+    search_parliamentary_questions,
+)
 from parliament_mcp.settings import settings
 
 
