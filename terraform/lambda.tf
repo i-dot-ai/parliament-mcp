@@ -29,6 +29,18 @@ data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
       "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:i-dot-ai-${terraform.workspace}-parliament-mcp-environment-variables-*"
     ]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey",
+      "kms:DescribeKey",
+    ]
+    resources = [
+      data.terraform_remote_state.platform.outputs.kms_key_arn,
+    ]
+  }
 }
 
 resource "aws_security_group" "parliament_mcp_security_group" {

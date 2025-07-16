@@ -134,7 +134,7 @@ known-first-party = ["parliament_mcp"]
 "parliament_mcp/mcp_server/handlers.py" = ["N803", "A001"]  # Allow non-snake_case args and shadowing builtins
 "parliament_mcp/mcp_server/main.py" = ["ARG001"]  # Allow unused args in FastAPI lifespan
 "parliament_mcp/models.py" = ["N815", "FURB162"]  # Allow mixedCase, timezone handling
-"parliament_mcp/settings.py" = ["S104", "TD002", "TD003"]  # Allow binding all interfaces, TODO format
+"parliament_mcp/settings.py" = ["S104", "TD002", "TD003", "N802"]  # Allow binding all interfaces, TODO format, uppercase property names for settings
 "parliament_mcp/shared_utils/auth.py" = ["E501"]  # Allow longer lines in auth
 "parliament_mcp/cli.py" = ["E501", "PLC0415"]  # Allow longer lines in CLI help text, allow imports not at top of file
 

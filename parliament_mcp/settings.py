@@ -1,32 +1,115 @@
+import logging
+import os
+from functools import lru_cache
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache
+def get_ssm_parameter(parameter_name: str, region: str = "eu-west-2") -> str:
+    """Fetch a parameter from AWS Systems Manager Parameter Store."""
+    try:
+        ssm = boto3.client("ssm", region_name=region)
+        response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
+        return response["Parameter"]["Value"]
+    except (ClientError, BotoCoreError) as e:
+        logger.warning("Could not fetch SSM parameter %s: %s", parameter_name, e)
+        return ""
+
+
+def get_environment_or_ssm(env_var_name: str, ssm_path: str | None = None, default: str = "") -> str:
+    """Get value from environment variable or fall back to SSM parameter."""
+    env_value = os.environ.get(env_var_name)
+    if env_value:
+        return env_value
+
+    if ssm_path and os.environ.get("AWS_REGION"):
+        return get_ssm_parameter(ssm_path, os.environ.get("AWS_REGION"))
+
+    return default
 
 
 class ParliamentMCPSettings(BaseSettings):
     """Configuration settings for Parliament MCP application with environment-based loading."""
 
-    APP_NAME: str
+    APP_NAME: str = "parliament-mcp"
     AWS_ACCOUNT_ID: str | None = None
-    AWS_REGION: str
+    AWS_REGION: str = "eu-west-2"
     ENVIRONMENT: str = "local"
-    SENTRY_DSN: str | None = None
+
+    # Use SSM for sensitive parameters in AWS environments
+    @property
+    def SENTRY_DSN(self) -> str | None:
+        return get_environment_or_ssm("SENTRY_DSN", f"/{self._get_project_name()}/env_secrets/SENTRY_DSN")
+
+    @property
+    def AZURE_OPENAI_API_KEY(self) -> str:
+        return get_environment_or_ssm(
+            "AZURE_OPENAI_API_KEY", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_KEY"
+        )
+
+    @property
+    def AZURE_OPENAI_ENDPOINT(self) -> str:
+        return get_environment_or_ssm(
+            "AZURE_OPENAI_ENDPOINT", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_ENDPOINT"
+        )
+
+    @property
+    def AZURE_OPENAI_RESOURCE_NAME(self) -> str:
+        return get_environment_or_ssm(
+            "AZURE_OPENAI_RESOURCE_NAME", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_RESOURCE_NAME"
+        )
+
+    @property
+    def AZURE_OPENAI_EMBEDDING_MODEL(self) -> str:
+        return get_environment_or_ssm(
+            "AZURE_OPENAI_EMBEDDING_MODEL", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL"
+        )
+
+    @property
+    def AZURE_OPENAI_API_VERSION(self) -> str:
+        return get_environment_or_ssm(
+            "AZURE_OPENAI_API_VERSION", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION", "preview"
+        )
+
+    # Elasticsearch connection settings
+    @property
+    def ELASTICSEARCH_CLOUD_ID(self) -> str | None:
+        return get_environment_or_ssm(
+            "ELASTICSEARCH_CLOUD_ID", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_CLOUD_ID"
+        )
+
+    @property
+    def ELASTICSEARCH_API_KEY(self) -> str | None:
+        return get_environment_or_ssm(
+            "ELASTICSEARCH_API_KEY", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_API_KEY"
+        )
+
+    @property
+    def ELASTICSEARCH_HOST(self) -> str | None:
+        return get_environment_or_ssm(
+            "ELASTICSEARCH_HOST", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_HOST", "localhost"
+        )
+
+    @property
+    def ELASTICSEARCH_PORT(self) -> int:
+        port_str = get_environment_or_ssm(
+            "ELASTICSEARCH_PORT", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_PORT", "9200"
+        )
+        return int(port_str) if port_str.isdigit() else 9200
+
+    ELASTICSEARCH_SCHEME: str = "http"
+
     AUTH_PROVIDER_PUBLIC_KEY: str | None = None
     DISABLE_AUTH_SIGNATURE_VERIFICATION: bool = ENVIRONMENT == "local"
 
-    AZURE_OPENAI_API_KEY: str
-    AZURE_OPENAI_ENDPOINT: str
-    AZURE_OPENAI_RESOURCE_NAME: str
-    AZURE_OPENAI_EMBEDDING_MODEL: str
-    AZURE_OPENAI_API_VERSION: str = "preview"
-
-    # Elasticsearch connection settings
-    # Cloud connection (takes precedence if both are set)
-    ELASTICSEARCH_CLOUD_ID: str | None = None
-    ELASTICSEARCH_API_KEY: str | None = None
-
-    # Local/direct connection (fallback)
-    ELASTICSEARCH_HOST: str | None = "localhost"
-    ELASTICSEARCH_PORT: int = 9200
-    ELASTICSEARCH_SCHEME: str = "http"
+    def _get_project_name(self) -> str:
+        """Get the project name from environment or use default."""
+        return os.environ.get("PROJECT_NAME", "i-dot-ai-dev-parliament-mcp")
 
     # Set to 0 for single-node cluster
     ELASTICSEARCH_INDEX_PATTERN: str = "parliament_mcp_*"
