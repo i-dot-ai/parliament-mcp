@@ -20,7 +20,6 @@ module "parliament_mcp_ingest_lambda" {
 
   environment_variables = {
     APP_NAME = "${local.name}-parliament-mcp-ingest"
-    AWS_REGION = var.region
     ENVIRONMENT = terraform.workspace
     PROJECT_NAME = local.name
   }

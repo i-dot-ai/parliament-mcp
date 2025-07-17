@@ -38,7 +38,7 @@ class ParliamentMCPSettings(BaseSettings):
 
     APP_NAME: str
     AWS_ACCOUNT_ID: str | None = None
-    AWS_REGION: str
+    AWS_REGION: str = "eu-west-2"
     ENVIRONMENT: str = "local"
 
     # Use SSM for sensitive parameters in AWS environments
