@@ -39,6 +39,17 @@ data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
   statement {
     effect = "Allow"
     actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+    ]
+    resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/env_secrets/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
       "kms:Decrypt",
       "kms:GenerateDataKey",
       "kms:DescribeKey",
