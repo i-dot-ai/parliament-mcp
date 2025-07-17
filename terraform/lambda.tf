@@ -17,6 +17,13 @@ module "parliament_mcp_ingest_lambda" {
   permissions_boundary_name      = "infra/${local.name}-perms-boundary-app"
   # Only schedule in prod, disabled in dev
   schedule                       = terraform.workspace == "prod" ? "cron(0 5 ? * * *)" : null
+
+  environment_variables = {
+    APP_NAME = "${local.name}-parliament-mcp-ingest"
+    AWS_REGION = var.region
+    ENVIRONMENT = terraform.workspace
+    PROJECT_NAME = local.name
+  }
 }
 
 data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
