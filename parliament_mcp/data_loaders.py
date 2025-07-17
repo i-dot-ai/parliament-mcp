@@ -1,8 +1,11 @@
 import asyncio
 import logging
+import os
+import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import timedelta
+from pathlib import Path
 from typing import Literal
 
 import hishel
@@ -44,11 +47,18 @@ async def cached_limited_get(*args, **kwargs) -> httpx.Response:
     """
     A wrapper around httpx.get that caches the result and limits the rate of requests.
     """
+    # Use /tmp for cache in Lambda environment
+    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        # In Lambda, use tempfile to get the temp directory securely
+        cache_dir = str(Path(tempfile.gettempdir()) / ".cache" / "hishel")
+    else:
+        cache_dir = ".cache/hishel"
+
     async with (
         hishel.AsyncCacheClient(
             timeout=30,
             headers={"User-Agent": "parliament-mcp"},
-            storage=hishel.AsyncFileStorage(ttl=timedelta(days=1).total_seconds()),
+            storage=hishel.AsyncFileStorage(base_path=cache_dir, ttl=timedelta(days=1).total_seconds()),
             transport=httpx.AsyncHTTPTransport(retries=3),
         ) as client,
         _http_client_rate_limiter,
