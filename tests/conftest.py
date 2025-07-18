@@ -69,7 +69,7 @@ async def elasticsearch_container_url() -> AsyncGenerator[str]:
     volume_path.mkdir(exist_ok=True)
 
     # Configure container with persistent volume
-    container = ElasticSearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.17.3")
+    container = ElasticSearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.17.8")
     container.with_env("discovery.type", "single-node")
     container.with_env("xpack.security.enabled", "false")
     container.with_env("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
@@ -116,4 +116,15 @@ async def es_test_client(
         # Load Parliamentary Questions - Monday only
         await load_data(es_client, settings, "parliamentary-questions", "2025-06-23", "2025-06-23")
 
+        yield es_client
+
+
+@pytest_asyncio.fixture(scope="function")
+async def es_cloud_client() -> AsyncGenerator[AsyncElasticsearch]:
+    """Elasticsearch client with real data loaded."""
+    async with AsyncElasticsearch(
+        cloud_id=settings.ELASTICSEARCH_CLOUD_ID,
+        api_key=settings.ELASTICSEARCH_API_KEY,
+        node_class="httpxasync",
+    ) as es_client:
         yield es_client
