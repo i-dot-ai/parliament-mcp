@@ -4,10 +4,9 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from parliament_mcp import settings
 from parliament_mcp.cli import configure_logging, load_data
 from parliament_mcp.elasticsearch_helpers import get_async_es_client
-from parliament_mcp.settings import ParliamentMCPSettings
+from parliament_mcp.settings import ParliamentMCPSettings, settings
 
 # Configure logging
 logger = logging.getLogger(__name__)

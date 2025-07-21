@@ -5,7 +5,7 @@ module "parliament_mcp_ingest_lambda" {
   image_config = {
     working_directory : "",
   }
-  policies                       = [jsonencode(data.aws_iam_policy_document.parliament_mcp_secrets_manager.json)]
+  lambda_additional_policy_arns  = { for idx, arn in [aws_iam_policy.parliament_mcp_secrets_manager.arn] : idx => arn }
   package_type                   = "Image"
   function_name                  = "${local.name}-parliament-mcp-ingest"
   timeout                        = 900
@@ -17,6 +17,12 @@ module "parliament_mcp_ingest_lambda" {
   permissions_boundary_name      = "infra/${local.name}-perms-boundary-app"
   # Only schedule in prod, disabled in dev
   schedule                       = terraform.workspace == "prod" ? "cron(0 5 ? * * *)" : null
+
+  environment_variables = {
+    APP_NAME = "${local.name}-parliament-mcp-ingest"
+    ENVIRONMENT = terraform.workspace
+    PROJECT_NAME = local.name
+  }
 }
 
 data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
@@ -29,6 +35,35 @@ data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
       "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.current.account_id}:secret:i-dot-ai-${terraform.workspace}-parliament-mcp-environment-variables-*"
     ]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath"
+    ]
+    resources = [
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${local.name}/env_secrets/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey",
+      "kms:DescribeKey",
+    ]
+    resources = [
+      data.terraform_remote_state.platform.outputs.kms_key_arn,
+    ]
+  }
+}
+
+resource "aws_iam_policy" "parliament_mcp_secrets_manager" {
+  name   = "${local.name}-secrets-ssm-access-policy"
+  policy = data.aws_iam_policy_document.parliament_mcp_secrets_manager.json
 }
 
 resource "aws_security_group" "parliament_mcp_security_group" {
