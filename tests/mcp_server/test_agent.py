@@ -39,7 +39,7 @@ async def test_interaction_with_members_api(test_mcp_agent: Agent):
 
 
 @pytest.mark.asyncio
-# @pytest.mark.integration
+@pytest.mark.integration
 async def test_we_can_find_relevant_contributions(test_mcp_agent: Agent):
     """
     Test that the agent can use the MCP server to search the Members API.
