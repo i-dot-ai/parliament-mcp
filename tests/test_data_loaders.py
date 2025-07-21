@@ -1,12 +1,15 @@
 import pytest
 
-from parliament_mcp.data_loaders import ElasticHansardLoader
 from parliament_mcp.models import DebateParent
+from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader
+from parliament_mcp.settings import settings
 
 
 @pytest.mark.asyncio
 async def test_get_debate_parents():
-    loader = ElasticHansardLoader(elastic_client=None, index_name="parliament_mcp_hansard_contributions")
+    loader = QdrantHansardLoader(
+        qdrant_client=None, collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION, settings=settings
+    )
     debate_parents = await loader.get_debate_parents(
         date="2025-06-25", house="Commons", debate_ext_id="C6A6D738-6043-4D98-81C5-DC9AF7C646E9"
     )

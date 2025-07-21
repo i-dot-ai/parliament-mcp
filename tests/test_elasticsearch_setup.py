@@ -1,40 +1,51 @@
-"""Test that Elasticsearch test container setup works correctly."""
+"""Test that Qdrant test container setup works correctly."""
 
 import pytest
-from elasticsearch import AsyncElasticsearch
+from qdrant_client import AsyncQdrantClient
 
+from parliament_mcp.qdrant_helpers import collection_exists
 from parliament_mcp.settings import settings
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_elasticsearch_indices_exist(es_test_client: AsyncElasticsearch):
-    """Test that the required indices exist with data."""
-    # Check if Parliamentary Questions index exists
-    result = await es_test_client.indices.exists(index=settings.PARLIAMENTARY_QUESTIONS_INDEX)
+async def test_qdrant_collections_exist(qdrant_test_client: AsyncQdrantClient):
+    """Test that the required collections exist with data."""
+
+    # Check if Parliamentary Questions collection exists
+    result = await collection_exists(qdrant_test_client, settings.PARLIAMENTARY_QUESTIONS_COLLECTION)
     assert result
 
-    # Check if Hansard Contributions index exists
-    assert await es_test_client.indices.exists(index=settings.HANSARD_CONTRIBUTIONS_INDEX)
+    # Check if Hansard Contributions collection exists
+    assert await collection_exists(qdrant_test_client, settings.HANSARD_CONTRIBUTIONS_COLLECTION)
 
-    # Check that indices have some data
-    pq_count = await es_test_client.count(index=settings.PARLIAMENTARY_QUESTIONS_INDEX)
-    hansard_count = await es_test_client.count(index=settings.HANSARD_CONTRIBUTIONS_INDEX)
+    # Check that collections have some data
+    pq_info = await qdrant_test_client.get_collection(settings.PARLIAMENTARY_QUESTIONS_COLLECTION)
+    hansard_info = await qdrant_test_client.get_collection(settings.HANSARD_CONTRIBUTIONS_COLLECTION)
 
     # At least some data should be loaded
-    assert pq_count["count"] > 0
-    assert hansard_count["count"] > 0
+    assert pq_info.points_count > 0
+    assert hansard_info.points_count > 0
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_elasticsearch_some_data_loaded(es_test_client: AsyncElasticsearch):
-    """Test that basic search functionality works."""
-    # Simple search across all indices
-    result = await es_test_client.search(
-        index=f"{settings.PARLIAMENTARY_QUESTIONS_INDEX},{settings.HANSARD_CONTRIBUTIONS_INDEX}",
-        body={"query": {"match_all": {}}, "size": 5},
+async def test_qdrant_some_data_loaded(qdrant_test_client: AsyncQdrantClient):
+    """Test that basic scroll functionality works."""
+    # Simple scroll across Parliamentary Questions collection
+    result, _ = await qdrant_test_client.scroll(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        limit=5,
+        with_payload=True,
     )
 
-    assert result["hits"]["total"]["value"] > 0
-    assert len(result["hits"]["hits"]) > 0
+    assert len(result) > 0
+
+    # Test Hansard collection as well
+    hansard_result, _ = await qdrant_test_client.scroll(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        limit=5,
+        with_payload=True,
+    )
+
+    assert len(hansard_result) > 0

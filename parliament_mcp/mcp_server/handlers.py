@@ -78,7 +78,7 @@ async def search_hansard_contributions(
     debateId: str | None = None,
     house: Literal["Commons", "Lords"] | None = None,
     maxResults: int = 100,
-    min_score: float = 0.5,
+    min_score: float = 0.3,
 ) -> list[dict]:
     """
     Search Hansard contributions using Qdrant vector search.

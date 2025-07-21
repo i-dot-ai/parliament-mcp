@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from openai import AsyncAzureOpenAI
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
+from qdrant_client.models import DatetimeRange, FieldCondition, Filter, MatchValue
 
 from parliament_mcp.embedding_helpers import generate_single_embedding
 from parliament_mcp.settings import ParliamentMCPSettings
@@ -12,17 +12,38 @@ from parliament_mcp.settings import ParliamentMCPSettings
 def build_date_range_filter(
     date_from: str | None, date_to: str | None, field: str = "SittingDate"
 ) -> FieldCondition | None:
-    """Build a date range filter for Qdrant queries."""
+    """Build a date range filter for Qdrant queries using DatetimeRange."""
     if not date_from and not date_to:
         return None
 
-    range_filter = {}
-    if date_from:
-        range_filter["gte"] = date_from
-    if date_to:
-        range_filter["lte"] = date_to
+    # Convert date strings to ISO datetime format for Qdrant
+    gte_date = None
+    lte_date = None
 
-    return FieldCondition(key=field, range=Range(**range_filter))
+    if date_from:
+        try:
+            # Convert to start of day
+            dt = datetime.fromisoformat(date_from)
+            gte_date = dt.isoformat() + "Z" if not dt.tzinfo else dt.isoformat()
+        except ValueError:
+            return None
+
+    if date_to:
+        try:
+            # Convert to end of day
+            dt = datetime.fromisoformat(date_to)
+            dt = dt.replace(hour=23, minute=59, second=59)
+            lte_date = dt.isoformat() + "Z" if not dt.tzinfo else dt.isoformat()
+        except ValueError:
+            return None
+
+    return FieldCondition(
+        key=field,
+        range=DatetimeRange(
+            gte=gte_date,
+            lte=lte_date,
+        ),
+    )
 
 
 def build_match_filter(field: str, value: Any) -> FieldCondition | None:
@@ -92,13 +113,14 @@ async def search_debates(
         )
 
         # Perform vector search
-        search_results = await qdrant_client.search(
+        query_response = await qdrant_client.query_points(
             collection_name=collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=max_results * 2,  # Get more results to allow for deduplication
             query_filter=query_filter,
             with_payload=True,
         )
+        search_results = query_response.points
     else:
         # If no query, use scroll to get results with filters only
         search_results, _ = await qdrant_client.scroll(
@@ -146,7 +168,7 @@ async def search_hansard_contributions(
     debateId: str | None = None,  # noqa: N803
     house: Literal["Commons", "Lords"] | None = None,
     maxResults: int = 100,  # noqa: N803
-    min_score: float = 0.5,
+    min_score: float = 0.3,
 ) -> list[dict]:
     """
     Search Hansard contributions using Qdrant vector search.
@@ -192,14 +214,15 @@ async def search_hansard_contributions(
         )
 
         # Perform vector search
-        search_results = await qdrant_client.search(
+        query_response = await qdrant_client.query_points(
             collection_name=collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=maxResults,
             score_threshold=min_score,
             query_filter=query_filter,
             with_payload=True,
         )
+        search_results = query_response.points
     else:
         # If no query, use scroll to get results with filters only
         search_results, _ = await qdrant_client.scroll(
@@ -253,7 +276,7 @@ async def search_parliamentary_questions(
     party: str | None = None,
     member_name: str | None = None,
     member_id: int | None = None,
-    min_score: float = 0.5,
+    min_score: float = 0.3,
     max_results: int = 100,
 ) -> list[dict]:
     """
@@ -289,14 +312,15 @@ async def search_parliamentary_questions(
         )
 
         # Perform vector search
-        search_results = await qdrant_client.search(
+        query_response = await qdrant_client.query_points(
             collection_name=collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=max_results,
             score_threshold=min_score,
             query_filter=query_filter,
             with_payload=True,
         )
+        search_results = query_response.points
     else:
         # If no query, use scroll to get results with filters only
         search_results, _ = await qdrant_client.scroll(

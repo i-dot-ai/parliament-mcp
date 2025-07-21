@@ -64,6 +64,7 @@ dev = [
     "testcontainers[elasticsearch]>=4.10.0",
     "pytest-integration-mark>=0.2.0",
     "sentry-sdk>=2.18.0",
+    "qdrant-client[fastembed]>=1.15.0",
 ]
 
 [build-system]

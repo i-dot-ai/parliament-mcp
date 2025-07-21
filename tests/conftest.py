@@ -2,25 +2,30 @@
 
 import logging
 import os
+import time
 import warnings
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import docker
+import dotenv
+import httpx
 import pytest
 import pytest_asyncio
-from elasticsearch import AsyncElasticsearch, Elasticsearch
-from testcontainers.core.waiting_utils import wait_for
-from testcontainers.elasticsearch import ElasticSearchContainer
+from qdrant_client import AsyncQdrantClient
+from testcontainers.qdrant import QdrantContainer
 
-from parliament_mcp.data_loaders import load_data
-from parliament_mcp.elasticsearch_helpers import initialize_elasticsearch_indices
+from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
+from parliament_mcp.qdrant_helpers import collection_exists, initialize_qdrant_collections
 from parliament_mcp.settings import settings
+
+# Load environment variables from .env file
+dotenv.load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
 # This is the host port that the container will be bound to.
-ES_CONTAINER_HOST_PORT = 9200
+QDRANT_CONTAINER_HOST_PORT = 6333
 
 
 def ensure_docker_connection():
@@ -60,41 +65,57 @@ def ensure_docker_connection():
 
 
 @pytest.fixture(scope="session")
-async def elasticsearch_container_url() -> AsyncGenerator[str]:
-    """Reusable Elasticsearch container with persistent data volume."""
+def qdrant_container_url() -> str:
+    """Reusable Qdrant container with persistent data volume."""
     ensure_docker_connection()
 
     # Create persistent volume path
-    volume_path = Path(__file__).parent / ".parliament-test-es-data"
+    volume_path = Path(__file__).parent / ".parliament-test-qdrant-data"
     volume_path.mkdir(exist_ok=True)
 
     # Configure container with persistent volume
-    container = ElasticSearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.17.3")
-    container.with_env("discovery.type", "single-node")
-    container.with_env("xpack.security.enabled", "false")
-    container.with_env("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
-    container.with_bind_ports(9200, host=ES_CONTAINER_HOST_PORT)
+    container = QdrantContainer("qdrant/qdrant:latest")
+    container.with_bind_ports(6333, host=QDRANT_CONTAINER_HOST_PORT)
+    container.with_volume_mapping(host=str(volume_path), container="/qdrant/storage", mode="rw")
 
-    # create a temporary sync client for the health check
-    es_client = Elasticsearch(f"http://{container.get_container_host_ip()}:{ES_CONTAINER_HOST_PORT}")
-
-    container.with_volume_mapping(host=str(volume_path), container="/usr/share/elasticsearch/data", mode="rw")
     with container:
-        wait_for(lambda: es_client.cluster.health(wait_for_status="green"))
-        yield f"http://{container.get_container_host_ip()}:{ES_CONTAINER_HOST_PORT}"
+        # Wait for Qdrant to be ready by checking the health endpoint
+        container_url = f"http://{container.get_container_host_ip()}:{QDRANT_CONTAINER_HOST_PORT}"
+
+        # Simple retry loop with timeout
+        max_attempts = 30
+        for _attempt in range(max_attempts):
+            try:
+                response = httpx.get(f"{container_url}/healthz", timeout=2.0)
+                if response.status_code == 200:
+                    break
+            except httpx.RequestError:
+                logger.debug("Qdrant not ready yet, retrying...")
+            time.sleep(1)
+        else:
+            msg = f"Qdrant container failed to become ready after {max_attempts} seconds"
+            raise RuntimeError(msg)
+
+        return container_url
 
 
 @pytest_asyncio.fixture(scope="function")
-async def es_test_client(
-    elasticsearch_container_url: str,
-) -> AsyncGenerator[AsyncElasticsearch]:
-    """Elasticsearch client with test data loaded (only loads once per session)."""
+async def qdrant_test_client(
+    qdrant_container_url: str,
+) -> AsyncGenerator[AsyncQdrantClient]:
+    """Qdrant client with test data loaded (only loads once per session)."""
 
-    async with AsyncElasticsearch(elasticsearch_container_url, node_class="httpxasync") as es_client:
+    qdrant_client = AsyncQdrantClient(url=qdrant_container_url)
+    try:
         # Check if data already exists
-        if await es_client.indices.exists(index=settings.HANSARD_CONTRIBUTIONS_INDEX):
-            yield es_client
-            return
+        if await collection_exists(qdrant_client, settings.HANSARD_CONTRIBUTIONS_COLLECTION):
+            # Check if collections actually have data
+            hansard_info = await qdrant_client.get_collection(settings.HANSARD_CONTRIBUTIONS_COLLECTION)
+            pq_info = await qdrant_client.get_collection(settings.PARLIAMENTARY_QUESTIONS_COLLECTION)
+
+            if hansard_info.points_count > 0 and pq_info.points_count > 0:
+                yield qdrant_client
+                return
 
         # pytest warning (shows with -W flag)
         warnings.warn(
@@ -104,16 +125,26 @@ async def es_test_client(
             stacklevel=0,
         )
 
-        # Initialize Elasticsearch indices and inference endpoints using the shared abstraction
-        # This will try to use semantic_text fields first, but fall back to regular text fields
-        # in test environments if the inference endpoint cannot be created
-        await initialize_elasticsearch_indices(es_client, settings)
+        # Initialize Qdrant collections
+        await initialize_qdrant_collections(qdrant_client, settings)
 
         # Load minimal test data
         # Load Hansard - Monday to Wednesday
-        await load_data(es_client, settings, "hansard", "2025-06-23", "2025-06-25")
+        hansard_loader = QdrantHansardLoader(
+            qdrant_client=qdrant_client,
+            collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+            settings=settings,
+        )
+        await hansard_loader.load_all_contributions("2025-06-23", "2025-06-25")
 
         # Load Parliamentary Questions - Monday only
-        await load_data(es_client, settings, "parliamentary-questions", "2025-06-23", "2025-06-23")
+        pq_loader = QdrantParliamentaryQuestionLoader(
+            qdrant_client=qdrant_client,
+            collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+            settings=settings,
+        )
+        await pq_loader.load_questions_for_date_range("2025-06-23", "2025-06-23")
 
-        yield es_client
+        yield qdrant_client
+    finally:
+        await qdrant_client.close()
