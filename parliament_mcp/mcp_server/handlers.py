@@ -3,6 +3,8 @@ from typing import Any, Literal
 
 from elasticsearch import AsyncElasticsearch
 
+from parliament_mcp.settings import settings
+
 
 def build_date_range_filter(date_from: str | None, date_to: str | None, field: str = "SittingDate") -> dict | None:
     """Build a date range filter for Elasticsearch queries."""
@@ -28,14 +30,6 @@ def add_filter_if_exists(filters: list, filter_dict: dict | None) -> None:
     """Add a filter to the list if it exists."""
     if filter_dict:
         filters.append(filter_dict)
-
-
-def build_source_fields(includes: list[str], excludes: list[str] | None = None) -> dict:
-    """Build _source field configuration for Elasticsearch queries."""
-    source_config = {"includes": includes}
-    if excludes:
-        source_config["excludes"] = excludes
-    return source_config
 
 
 def build_semantic_query(query: str, field: str, boost: float = 1.0) -> dict:
@@ -202,8 +196,8 @@ async def search_hansard_contributions(
     add_filter_if_exists(filters, build_house_filter(house))
 
     query_body = {
-        "_source": build_source_fields(
-            includes=[
+        "_source": {
+            "includes": [
                 "contribution_url",
                 "debate_url",
                 "ContributionTextFull.text",
@@ -216,10 +210,11 @@ async def search_hansard_contributions(
                 "debate_parents.Title",
                 "DebateSection",
             ],
-            excludes=["ContributionTextFull.inference"],
-        ),
+            "excludes": ["ContributionTextFull.inference"],
+        },
         "query": {"bool": {"filter": filters}},
         "size": maxResults,
+        "min_score": min_score,
         "sort": [
             {"_score": {"order": "desc"}},
             {"SittingDate": {"order": "asc"}},
@@ -229,9 +224,19 @@ async def search_hansard_contributions(
     }
 
     if query:
-        # If a query is provided, then use a hybrid search to find the most relevant contributions
-        query_body["min_score"] = min_score
-        query_body["query"]["bool"]["must"] = [build_semantic_query(query, "ContributionTextFull", 1.0)]
+        # If a query is provided, then use a knn search to find the most relevant contributions
+        query_body["knn"] = {
+            "field": "ContributionTextFull.inference.chunks.embeddings",
+            "query_vector_builder": {
+                "text_embedding": {
+                    "model_id": settings.EMBEDDING_INFERENCE_ENDPOINT_NAME,
+                    "model_text": query,
+                }
+            },
+            "filter": filters,
+        }
+    else:
+        query_body["query"] = {"bool": {"filter": filters}}
 
     response = await es_client.search(index=index, body=query_body)
 
@@ -330,8 +335,8 @@ def build_parliamentary_questions_query(
 
     base_query = {
         "min_score": min_score,
-        "_source": build_source_fields(
-            includes=[
+        "_source": {
+            "includes": [
                 "uin",
                 "questionText",
                 "answerText",
@@ -340,8 +345,8 @@ def build_parliamentary_questions_query(
                 "dateTabled",
                 "dateAnswered",
             ],
-            excludes=["questionText.inference", "answerText.inference"],
-        ),
+            "excludes": ["questionText.inference", "answerText.inference"],
+        },
     }
 
     if query:

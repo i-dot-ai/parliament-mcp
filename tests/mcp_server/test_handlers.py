@@ -101,3 +101,25 @@ async def test_pmqs_are_on_wednesdays(es_test_client: AsyncElasticsearch):
             assert date.weekday() == 2, "PMQs found on wrong day"
 
     assert any_pmqs_found, "No PMQs found in test data"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_search_hansard_contributions_with_knn(es_test_client: AsyncElasticsearch):
+    """Test Hansard contributions search with knn.
+
+    Should find the contribution on NATO from Pat McFadden on 24th June 2025.
+    """
+    results = await search_hansard_contributions(
+        es_client=es_test_client,
+        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        query="NATO",
+        memberId=1587,
+        dateFrom="2025-06-23",
+        dateTo="2025-06-27",
+    )
+    assert results is not None
+    assert len(results) > 0
+
+    top_contribution_url = "https://hansard.parliament.uk/Commons/2025-06-24/debates/3E222FED-6C44-400C-8ABD-112BDCDAE98B/link#contribution-69057392-95C1-40B9-A415-6B4CCCFEE821"
+    assert results[0]["contribution_url"] == top_contribution_url
