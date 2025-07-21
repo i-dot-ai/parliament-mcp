@@ -137,8 +137,13 @@ known-first-party = ["parliament_mcp"]
 "parliament_mcp/settings.py" = ["S104", "TD002", "TD003"]  # Allow binding all interfaces, TODO format
 "parliament_mcp/shared_utils/auth.py" = ["E501"]  # Allow longer lines in auth
 "parliament_mcp/cli.py" = ["E501", "PLC0415"]  # Allow longer lines in CLI help text, allow imports not at top of file
+"tests/conftest.py" = ["ARG001"]  # Allow non-snake_case args and shadowing builtins
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+filterwarnings = [
+    "ignore:websockets.legacy is deprecated:DeprecationWarning",
+    "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
+]

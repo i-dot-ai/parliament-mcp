@@ -1,5 +1,6 @@
 """Test configuration and fixtures for Parliament MCP tests."""
 
+import asyncio
 import logging
 import os
 import warnings
@@ -9,7 +10,11 @@ from pathlib import Path
 import docker
 import pytest
 import pytest_asyncio
+import uvicorn
+from agents import Agent, OpenAIResponsesModel
+from agents.mcp import MCPServerStreamableHttp, MCPServerStreamableHttpParams
 from elasticsearch import AsyncElasticsearch, Elasticsearch
+from openai import AsyncAzureOpenAI
 from testcontainers.core.waiting_utils import wait_for
 from testcontainers.elasticsearch import ElasticSearchContainer
 
@@ -84,7 +89,7 @@ async def elasticsearch_container_url() -> AsyncGenerator[str]:
         yield f"http://{container.get_container_host_ip()}:{ES_CONTAINER_HOST_PORT}"
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def es_test_client(
     elasticsearch_container_url: str,
 ) -> AsyncGenerator[AsyncElasticsearch]:
@@ -117,6 +122,47 @@ async def es_test_client(
         await load_data(es_client, settings, "parliamentary-questions", "2025-06-23", "2025-06-23")
 
         yield es_client
+
+
+@pytest_asyncio.fixture(scope="session")
+async def test_mcp_server(es_test_client: AsyncElasticsearch) -> AsyncGenerator[MCPServerStreamableHttp]:
+    """Start the MCP server backed by the test Elasticsearch client."""
+    config = uvicorn.Config("parliament_mcp.mcp_server.main:create_app", host="127.0.0.1", port=8081, log_level="info")
+    server = uvicorn.Server(config=config)
+
+    # Create a task for the server
+    server_task = asyncio.create_task(server.serve())
+
+    try:
+        # Wait for server to be ready
+        logger.info("Waiting for server to start")
+        await asyncio.sleep(1)
+
+        async with MCPServerStreamableHttp(
+            params=MCPServerStreamableHttpParams(
+                url="http://127.0.0.1:8081/mcp",
+            )
+        ) as mcp_client:
+            yield mcp_client
+    finally:
+        server.should_exit = True
+        await server_task
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_mcp_agent(test_mcp_server: MCPServerStreamableHttp):
+    """Agent fixture that uses test settings and running MCP server."""
+    client = AsyncAzureOpenAI(
+        api_key=settings.AZURE_OPENAI_API_KEY,
+        azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+        api_version=settings.AZURE_OPENAI_API_VERSION,
+    )
+    agent = Agent(
+        name="Parliament research assistant",
+        model=OpenAIResponsesModel(openai_client=client, model="gpt-4o-mini"),
+        mcp_servers=[test_mcp_server],
+    )
+    yield agent
 
 
 @pytest_asyncio.fixture(scope="function")
