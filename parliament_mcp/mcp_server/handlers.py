@@ -214,7 +214,6 @@ async def search_hansard_contributions(
         },
         "query": {"bool": {"filter": filters}},
         "size": maxResults,
-        "min_score": min_score,
         "sort": [
             {"_score": {"order": "desc"}},
             {"SittingDate": {"order": "asc"}},
@@ -235,6 +234,7 @@ async def search_hansard_contributions(
             },
             "filter": filters,
         }
+        query_body["min_score"] = min_score
     else:
         query_body["query"] = {"bool": {"filter": filters}}
 
