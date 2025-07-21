@@ -5,7 +5,7 @@ module "parliament_mcp_ingest_lambda" {
   image_config = {
     working_directory : "",
   }
-  policies                       = [jsonencode(data.aws_iam_policy_document.parliament_mcp_secrets_manager.json)]
+  lambda_additional_policy_arns  = { for idx, arn in [aws_iam_policy.parliament_mcp_secrets_manager.arn] : idx => arn }
   package_type                   = "Image"
   function_name                  = "${local.name}-parliament-mcp-ingest"
   timeout                        = 900
@@ -59,6 +59,11 @@ data "aws_iam_policy_document" "parliament_mcp_secrets_manager" {
       data.terraform_remote_state.platform.outputs.kms_key_arn,
     ]
   }
+}
+
+resource "aws_iam_policy" "parliament_mcp_secrets_manager" {
+  name   = "${local.name}-secrets-ssm-access-policy"
+  policy = data.aws_iam_policy_document.parliament_mcp_secrets_manager.json
 }
 
 resource "aws_security_group" "parliament_mcp_security_group" {
