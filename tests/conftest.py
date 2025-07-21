@@ -1,6 +1,7 @@
 """Test configuration and fixtures for Parliament MCP tests."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import warnings
@@ -146,7 +147,8 @@ async def test_mcp_server(es_test_client: AsyncElasticsearch) -> AsyncGenerator[
             yield mcp_client
     finally:
         server.should_exit = True
-        await server_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await server_task
 
 
 @pytest_asyncio.fixture(scope="function")
