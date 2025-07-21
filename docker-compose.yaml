@@ -1,25 +1,16 @@
 services:
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    env_file:
-      - path: .env
-        required: true
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
     ports:
-      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+      - "${QDRANT_PORT:-6333}:6333"
+      - "6334:6334"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - qdrant_data:/qdrant/storage
     networks:
       - parliament-mcp-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    # Note: Qdrant container doesn't include curl, so we'll rely on port availability
+    # The service is healthy if it's responding on port 6333
 
   mcp-server:
     build:
@@ -29,18 +20,18 @@ services:
     ports:
       - "${MCP_PORT}:${MCP_PORT}"
     environment:
-      - ELASTICSEARCH_HOST=elasticsearch
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
     env_file:
       - path: .env
         required: true
     networks:
       - parliament-mcp-network
     depends_on:
-      elasticsearch:
-        condition: service_healthy
+      - qdrant
 
 volumes:
-  es_data:
+  qdrant_data:
     driver: local
 
 networks:

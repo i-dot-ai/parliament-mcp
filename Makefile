@@ -21,8 +21,8 @@ test_integration: install
 test_integration_cleanup:  ## Clean up files created by integration tests
 	rm -rf .cache .pytest_cache tests/.parliament-test-es-data
 
-run_elasticsearch:
-	docker compose up -d elasticsearch --wait
+run_qdrant:
+	docker compose up -d qdrant --wait
 
 run_mcp_server:
 	uv run parliament-mcp serve
@@ -45,33 +45,33 @@ logs:
 logs_all:
 	docker compose logs -f
 
-# Elasticsearch Commands
-init_elasticsearch:
-	docker compose exec mcp-server uv run parliament-mcp --log-level INFO init-elasticsearch
+# Qdrant Commands
+init_qdrant:
+	docker compose exec mcp-server uv run parliament-mcp --log-level INFO init-qdrant
 
-load_data_last_3_days: init_elasticsearch
+load_data_last_3_days: init_qdrant
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "3 days ago" --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "3 days ago" --to-date "today"
 
-load_data_last_week: init_elasticsearch
+load_data_last_week: init_qdrant
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "1 week ago" --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "1 week ago" --to-date "today"
 
-load_reference_week: init_elasticsearch
+load_reference_week: init_qdrant
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2025-06-23 --to-date 2025-06-27
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2025-06-23 --to-date 2025-06-27
 
-load_data_since_2020: init_elasticsearch
+load_data_since_2020: init_qdrant
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2020-01-01 --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2020-01-01 --to-date "today"
 
 .PHONY: ingest_daily
-ingest_daily: init_elasticsearch
+ingest_daily: init_qdrant
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "2 days ago" --to-date "today"
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "2 days ago" --to-date "today"
 
-delete_elasticsearch_data:
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-elasticsearch
+delete_qdrant_data:
+	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-qdrant
 
 # MCP Development Commands
 .PHONY: mcp_test
@@ -94,9 +94,9 @@ mcp_claude_config:  ## Show Claude Desktop config
 # Development helper: Complete setup from scratch
 dev_setup_from_scratch: docker_remove_all build_and_run load_reference_week mcp_claude_config
 
-.PHONY: es_health
-es_health:  ## Check Elasticsearch health
-	curl -s http://localhost:9200/_cluster/health | jq
+.PHONY: qdrant_health
+qdrant_health:  ## Check Qdrant health
+	curl -s http://localhost:6333/ | jq
 
 .PHONY: lint
 lint:  ## Check code formatting & linting
