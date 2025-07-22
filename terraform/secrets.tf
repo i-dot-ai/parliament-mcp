@@ -12,19 +12,19 @@ locals {
       value = "placeholder" # Update value in SSM - Do not hardcode - Empty value will disable sentry
     },
     {
-      name = "ELASTICSEARCH_HOST"
+      name = "QDRANT_HOST"
       value = "placeholder"
     },
     {
-      name = "ELASTICSEARCH_PORT"
+      name = "QDRANT_PORT"
+      value = "6333"
+    },
+    {
+      name = "QDRANT_URL"
       value = "placeholder"
     },
     {
-      name = "ELASTICSEARCH_CLOUD_ID"
-      value = "placeholder"
-    },
-    {
-      name = "ELASTICSEARCH_API_KEY"
+      name = "QDRANT_API_KEY"
       value = "placeholder"
     },
     {
