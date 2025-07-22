@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from parliament_mcp.cli import configure_logging, load_data
-from parliament_mcp.elasticsearch_helpers import get_async_es_client
+from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import ParliamentMCPSettings, settings
 
 # Configure logging
@@ -19,9 +19,9 @@ async def main(settings: ParliamentMCPSettings, from_date_str: str, to_date_str:
     """Main ingestion function that processes all data sources."""
 
     logger.info("Ingesting Hansard data...")
-    async with get_async_es_client(settings) as es_client:
+    async with get_async_qdrant_client(settings) as qdrant_client:
         await load_data(
-            es_client=es_client,
+            qdrant_client=qdrant_client,
             settings=settings,
             source="hansard",
             from_date=from_date_str,
@@ -31,7 +31,7 @@ async def main(settings: ParliamentMCPSettings, from_date_str: str, to_date_str:
 
         logger.info("Ingesting Parliamentary Questions data...")
         await load_data(
-            es_client=es_client,
+            qdrant_client=qdrant_client,
             settings=settings,
             source="parliamentary-questions",
             from_date=from_date_str,

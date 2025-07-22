@@ -19,7 +19,7 @@ test_integration: install
 	uv run python -m pytest -s -v --with-integration
 
 test_integration_cleanup:  ## Clean up files created by integration tests
-	rm -rf .cache .pytest_cache tests/.parliament-test-es-data
+	rm -rf .cache .pytest_cache tests/.parliament-test-qdrant-data
 
 run_qdrant:
 	docker compose up -d qdrant --wait
