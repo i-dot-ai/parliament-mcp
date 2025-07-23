@@ -4,7 +4,7 @@ import logging
 import os
 import time
 import warnings
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
 import docker
@@ -65,7 +65,7 @@ def ensure_docker_connection():
 
 
 @pytest.fixture(scope="session")
-def qdrant_container_url() -> str:
+def qdrant_container_url() -> Generator[str]:
     """Reusable Qdrant container with persistent data volume."""
     ensure_docker_connection()
 
@@ -96,7 +96,7 @@ def qdrant_container_url() -> str:
             msg = f"Qdrant container failed to become ready after {max_attempts} seconds"
             raise RuntimeError(msg)
 
-        return container_url
+        yield container_url
 
 
 @pytest_asyncio.fixture(scope="function")
