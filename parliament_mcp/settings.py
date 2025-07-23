@@ -61,12 +61,6 @@ class ParliamentMCPSettings(BaseSettings):
         )
 
     @property
-    def AZURE_OPENAI_RESOURCE_NAME(self) -> str:
-        return get_environment_or_ssm(
-            "AZURE_OPENAI_RESOURCE_NAME", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_RESOURCE_NAME"
-        )
-
-    @property
     def AZURE_OPENAI_EMBEDDING_MODEL(self) -> str:
         return get_environment_or_ssm(
             "AZURE_OPENAI_EMBEDDING_MODEL", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL"

@@ -5,7 +5,7 @@ from openai import AsyncAzureOpenAI
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import DatetimeRange, FieldCondition, Filter, MatchValue
 
-from parliament_mcp.embedding_helpers import generate_single_embedding
+from parliament_mcp.embedding_helpers import embed_single
 from parliament_mcp.settings import ParliamentMCPSettings
 
 
@@ -105,7 +105,7 @@ async def search_debates(
 
     if query:
         # Generate embedding for search query
-        query_vector = await generate_single_embedding(
+        query_vector = await embed_single(
             openai_client,
             query,
             settings.AZURE_OPENAI_EMBEDDING_MODEL,
@@ -206,7 +206,7 @@ async def search_hansard_contributions(
 
     if query:
         # Generate embedding for search query
-        query_vector = await generate_single_embedding(
+        query_vector = await embed_single(
             openai_client,
             query,
             settings.AZURE_OPENAI_EMBEDDING_MODEL,
@@ -304,7 +304,7 @@ async def search_parliamentary_questions(
 
     if query:
         # Generate embedding for search query
-        query_vector = await generate_single_embedding(
+        query_vector = await embed_single(
             openai_client,
             query,
             settings.AZURE_OPENAI_EMBEDDING_MODEL,

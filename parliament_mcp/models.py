@@ -1,7 +1,18 @@
 import hashlib
+from collections.abc import Generator
 from datetime import datetime
+from typing import TypedDict
 
+from chonkie import BaseChunker
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer, field_validator
+
+
+class ChunkDict(TypedDict):
+    """Type for chunk dictionaries that guarantees a 'text', 'chunk_type', and 'chunk_id' property."""
+
+    text: str
+    chunk_type: str
+    chunk_id: str
 
 
 class DebateParent(BaseModel):
@@ -15,8 +26,8 @@ class DebateParent(BaseModel):
     ExternalId: str
 
 
-class ElasticDocument(BaseModel):
-    """Base class for Elasticsearch documents with document URI."""
+class QdrantDocument(BaseModel):
+    """Base class for Qdrant documents with document URI."""
 
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -26,8 +37,17 @@ class ElasticDocument(BaseModel):
         message = "Subclasses must implement this method"
         raise NotImplementedError(message)
 
+    @property
+    def get_embeddable_text(self) -> str:
+        message = "Subclasses must implement this method"
+        raise NotImplementedError(message)
 
-class Contribution(ElasticDocument):
+    def to_chunks(self, chunker: BaseChunker) -> Generator[dict]:
+        message = "Subclasses must implement this method"
+        raise NotImplementedError(message)
+
+
+class Contribution(QdrantDocument):
     """Model for Hansard contributions/speeches in Parliament."""
 
     model_config = ConfigDict(extra="forbid")
@@ -77,6 +97,10 @@ class Contribution(ElasticDocument):
         else:
             return f"debate_{self.DebateSectionExtId}_contrib_{self.ContributionExtId}"
 
+    @property
+    def get_embeddable_text(self) -> str:
+        return self.ContributionTextFull
+
     def __str__(self):
         """String representation of contribution."""
         res = f"\nContribution {self.OrderInDebateSection}"
@@ -84,6 +108,27 @@ class Contribution(ElasticDocument):
         res += f"\n{self.ContributionText}\n"
 
         return res
+
+    def to_chunks(self, chunker: BaseChunker) -> Generator[ChunkDict]:
+        chunks = chunker.chunk(self.ContributionTextFull)
+        document = self.model_dump(mode="json")
+        del document["ContributionTextFull"]
+        del document["ContributionText"]
+        for chunk_id, chunk in enumerate(chunks):
+            chunk_dict: ChunkDict = {
+                **document,
+                "text": chunk.text,
+                "chunk_type": "contribution",
+                "chunk_id": f"{self.document_uri}_chunk_{chunk_id}",
+            }
+            yield chunk_dict
+
+
+class ContributionChunk(BaseModel):
+    """Model for a chunk of a contribution."""
+
+    text: str
+    contribution: Contribution
 
 
 class ContributionsResponse(BaseModel):
@@ -161,13 +206,15 @@ class GroupedQuestionDate(BaseModel):
         return value
 
 
-class ParliamentaryQuestion(ElasticDocument):
+class ParliamentaryQuestion(QdrantDocument):
     """
     Represents a parliamentary question with its associated metadata and answer.
 
     This model includes information about the asking member, answering member,
     question content, answer content, and various timestamps and status flags.
     """
+
+    model_config = ConfigDict(extra="ignore")
 
     id: int
     askingMemberId: int
@@ -224,7 +271,32 @@ class ParliamentaryQuestion(ElasticDocument):
             self.answerText is not None and self.answerText.endswith("...")
         )
 
-    model_config = {"extra": "ignore"}
+    @property
+    def get_embeddable_text(self) -> str:
+        return f"QUESTION: {self.questionText}\n ANSWER: {self.answerText}".strip()
+
+    def to_chunks(self, chunker: BaseChunker) -> Generator[ChunkDict]:
+        question_chunks = chunker.chunk(self.questionText)
+        answer_chunks = chunker.chunk(self.answerText)
+        document = self.model_dump(mode="json")
+        del document["questionText"]
+        del document["answerText"]
+        for chunk_id, chunk in enumerate(question_chunks, start=0):
+            chunk_dict: ChunkDict = {
+                **document,
+                "text": chunk.text,
+                "chunk_type": "question",
+                "chunk_id": f"{self.document_uri}_chunk_{chunk_id}",
+            }
+            yield chunk_dict
+        for chunk_id, chunk in enumerate(answer_chunks, start=len(question_chunks)):
+            chunk_dict: ChunkDict = {
+                **document,
+                "text": chunk.text,
+                "chunk_type": "answer",
+                "chunk_id": f"{self.document_uri}_chunk_{chunk_id}",
+            }
+            yield chunk_dict
 
 
 class Link(BaseModel):

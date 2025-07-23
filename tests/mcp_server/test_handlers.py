@@ -13,7 +13,7 @@ from parliament_mcp.settings import settings
 
 # mark async
 @pytest.mark.asyncio
-@pytest.mark.integration
+# @pytest.mark.integration
 async def test_search_parliamentary_questions(qdrant_test_client: AsyncQdrantClient):
     """Test Parliamentary Questions search with test data."""
     results = await search_parliamentary_questions(
