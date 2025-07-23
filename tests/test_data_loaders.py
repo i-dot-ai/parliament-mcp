@@ -1,8 +1,23 @@
 import pytest
+from qdrant_client import AsyncQdrantClient
 
 from parliament_mcp.models import DebateParent
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader
 from parliament_mcp.settings import settings
+
+
+@pytest.mark.asyncio
+# @pytest.mark.integration
+async def test_hansard_loader(qdrant_in_memory_test_client: AsyncQdrantClient):
+    loader = QdrantHansardLoader(
+        qdrant_client=qdrant_in_memory_test_client,
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
+    )
+    await loader.load_all_contributions(from_date="2025-06-25", to_date="2025-06-25")
+
+    count_result = await qdrant_in_memory_test_client.count(settings.HANSARD_CONTRIBUTIONS_COLLECTION)
+    assert count_result.count >= 100
 
 
 @pytest.mark.asyncio

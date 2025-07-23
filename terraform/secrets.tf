@@ -36,10 +36,6 @@ locals {
       value = "placeholder"
     },
     {
-      name = "AZURE_OPENAI_RESOURCE_NAME"
-      value = "placeholder"
-    },
-    {
       name = "AZURE_OPENAI_EMBEDDING_MODEL"
       value = "placeholder"
     },

@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import timedelta
+from itertools import chain
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +15,7 @@ import hishel
 import httpx
 from aiolimiter import AsyncLimiter
 from async_lru import alru_cache
+from chonkie import RecursiveChunker
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import PointStruct
 from rich.progress import (
@@ -27,13 +29,13 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from parliament_mcp.embedding_helpers import generate_embeddings, get_openai_client
+from parliament_mcp.embedding_helpers import embed_batch, get_openai_client
 from parliament_mcp.models import (
     ContributionsResponse,
     DebateParent,
-    ElasticDocument,
     ParliamentaryQuestion,
     ParliamentaryQuestionsResponse,
+    QdrantDocument,
 )
 from parliament_mcp.settings import ParliamentMCPSettings, settings
 
@@ -113,8 +115,10 @@ class QdrantDataLoader:
         self.qdrant_client = qdrant_client
         self.collection_name = collection_name
         self.settings = settings
-        self.openai_client = get_openai_client(settings)
         self.progress: Progress | None = None
+        self.openai_client = get_openai_client(self.settings)
+
+        self.chunker = RecursiveChunker()
 
     async def get_total_results(self, url: str, params: dict, count_key: str = "TotalResultCount") -> int:
         """Get total results count from API endpoint"""
@@ -150,67 +154,6 @@ class QdrantDataLoader:
             self.progress.refresh()
         self.progress = None
 
-    async def store_in_qdrant(self, documents: list[ElasticDocument]) -> None:
-        """Store documents in Qdrant with embedding generation."""
-        points = []
-
-        for doc in documents:
-            # Convert document to dictionary
-            doc_dict = doc.model_dump(mode="json")
-
-            # Determine text to embed based on document type
-            if hasattr(doc, "ContributionTextFull") and doc.ContributionTextFull:
-                # Hansard contribution - use full contribution text
-                text_to_embed = doc.ContributionTextFull
-            elif hasattr(doc, "questionText") and hasattr(doc, "answerText"):
-                # Parliamentary question - combine question and answer
-                question_text = doc.questionText or ""
-                answer_text = doc.answerText or ""
-                text_to_embed = f"{question_text} {answer_text}".strip()
-            else:
-                logger.warning("Unknown document type or no text found, skipping: %s", type(doc))
-                continue
-
-            if not text_to_embed:
-                logger.warning("No text found in document %s", doc.document_uri)
-                continue
-
-            # Generate embedding for the whole document
-            embeddings = await generate_embeddings(
-                self.openai_client,
-                [text_to_embed],
-                self.settings.AZURE_OPENAI_EMBEDDING_MODEL,
-                self.settings.EMBEDDING_DIMENSIONS,
-            )
-
-            # Create single point for the whole document
-            point = PointStruct(
-                id=self._generate_point_id(doc.document_uri),
-                vector=embeddings[0],
-                payload={
-                    **doc_dict,
-                    "text": text_to_embed,  # Store the text used for embedding
-                },
-            )
-            points.append(point)
-
-        if points:
-            # Upsert points in batches
-            batch_size = 100
-            for i in range(0, len(points), batch_size):
-                batch = points[i : i + batch_size]
-                await self.qdrant_client.upsert(
-                    collection_name=self.collection_name,
-                    points=batch,
-                )
-                logger.info(
-                    "Upserted batch %d-%d of %d points to collection %s",
-                    i + 1,
-                    min(i + batch_size, len(points)),
-                    len(points),
-                    self.collection_name,
-                )
-
     def _generate_point_id(self, point_id_str: str) -> str:
         """Generate a consistent UUID from string ID."""
         # Use SHA-256 hash to create consistent UUID
@@ -218,6 +161,43 @@ class QdrantDataLoader:
         hash_hex = hash_obj.hexdigest()
         # Use first 32 characters to create UUID
         return str(uuid.UUID(hash_hex[:32]))
+
+    async def store_in_qdrant_batch(self, documents: list[QdrantDocument]) -> None:
+        """Store documents in Qdrant as chunked embeddings."""
+        # Convert documents to chunks
+        chunked_documents = list(chain.from_iterable(document.to_chunks(self.chunker) for document in documents))
+
+        if not chunked_documents:
+            logger.debug("No chunks to store")
+            return
+
+        # Generate embeddings for chunks
+        chunk_texts = [chunk["text"] for chunk in chunked_documents]
+        embedded_chunks = await embed_batch(
+            client=self.openai_client,
+            texts=chunk_texts,
+            model=self.settings.AZURE_OPENAI_EMBEDDING_MODEL,
+            dimensions=self.settings.EMBEDDING_DIMENSIONS,
+        )
+
+        # Create points for chunks
+        points = [
+            PointStruct(
+                id=self._generate_point_id(chunk["chunk_id"]),
+                vector=embedding,
+                payload=chunk,
+            )
+            for chunk, embedding in zip(chunked_documents, embedded_chunks, strict=True)
+        ]
+
+        # Upsert the chunks
+        await self.qdrant_client.upsert(
+            collection_name=self.collection_name,
+            points=points,
+            wait=False,
+        )
+
+        logger.debug("Stored %d chunks in collection %s", len(points), self.collection_name)
 
 
 class QdrantHansardLoader(QdrantDataLoader):
@@ -288,7 +268,7 @@ class QdrantHansardLoader(QdrantDataLoader):
                             contribution.DebateSectionExtId,
                         )
 
-                    await self.store_in_qdrant(valid_contributions)
+                    await self.store_in_qdrant_batch(valid_contributions)
                     self.progress.update(task, advance=len(contributions.Results))
             except Exception:
                 logger.exception("Failed to process page - %s", query_params)

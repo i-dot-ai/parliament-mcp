@@ -29,7 +29,7 @@ QDRANT_CONTAINER_HOST_PORT = 6333
 
 
 def ensure_docker_connection():
-    """Ensure Docker is accessible, trying common socket locations if needed."""
+    """Ensure Docker is accessible, setting DOCKER_HOST if needed."""
     # Socket paths to try in order
     socket_paths = [
         None,  # Default (let Docker SDK decide)
@@ -39,17 +39,15 @@ def ensure_docker_connection():
     ]
 
     for socket_path in socket_paths:
-        if socket_path:
-            if not socket_path.exists():
-                continue
+        if socket_path and socket_path.exists():
             os.environ["DOCKER_HOST"] = f"unix://{socket_path}"
-        else:
-            os.environ.pop("DOCKER_HOST", None)
 
         try:
-            docker.from_env().ping()
+            docker_client = docker.from_env()
+            docker_client.ping()
+            return
         except docker.errors.DockerException:
-            logger.warning("Failed to connect to Docker at %s", socket_path)
+            logger.warning("Failed to connect to Docker at DOCKER_HOST='%s'", os.environ.get("DOCKER_HOST"))
             continue
         else:
             return
@@ -148,3 +146,12 @@ async def qdrant_test_client(
         yield qdrant_client
     finally:
         await qdrant_client.close()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def qdrant_in_memory_test_client() -> AsyncGenerator[AsyncQdrantClient]:
+    """Qdrant client with test data loaded (only loads once per session)."""
+    qdrant_client = AsyncQdrantClient(":memory:")
+    await initialize_qdrant_collections(qdrant_client, settings)
+    yield qdrant_client
+    await qdrant_client.close()

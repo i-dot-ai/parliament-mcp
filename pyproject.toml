@@ -40,6 +40,7 @@ dependencies = [
     "mcp[cli]>=1.9.4",
     "fastapi[standard]>=0.115.13",
     "uvicorn>=0.34.3",
+    "chonkie>=1.1.1",
 ]
 
 [project.scripts]
