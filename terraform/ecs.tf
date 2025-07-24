@@ -40,8 +40,8 @@ module "backend" {
     "AWS_ACCOUNT_ID": data.aws_caller_identity.current.account_id,
     "DOCKER_BUILDER_CONTAINER": "parliament-mcp",
     "AUTH_PROVIDER_PUBLIC_KEY": data.aws_ssm_parameter.auth_provider_public_key.value,
-    # Qdrant connection via service discovery
-    "QDRANT_HOST": "qdrant.${data.terraform_remote_state.platform.outputs.service_discovery_namespace_name}",
+    # Qdrant connection via ALB hostname
+    "QDRANT_HOST": local.host_qdrant,
     "QDRANT_PORT": "6333",
   }
 
