@@ -73,11 +73,6 @@ ingest_daily: init_qdrant
 delete_qdrant_data:
 	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-qdrant
 
-local_remake:
-	uv run parliament-mcp delete-qdrant
-	uv run parliament-mcp init-qdrant
-	uv run parliament-mcp load-data hansard --from-date "2025-07-23" --to-date "2025-07-24"
-
 # MCP Development Commands
 .PHONY: mcp_test
 mcp_test:  ## Test MCP server connection

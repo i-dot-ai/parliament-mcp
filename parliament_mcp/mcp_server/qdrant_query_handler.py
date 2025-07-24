@@ -19,32 +19,11 @@ def build_date_range_filter(
     if not date_from and not date_to:
         return None
 
-    # Convert date strings to ISO datetime format for Qdrant
-    gte_date = None
-    lte_date = None
-
-    if date_from:
-        try:
-            # Convert to start of day
-            dt = datetime.fromisoformat(date_from)
-            gte_date = dt.isoformat() + "Z" if not dt.tzinfo else dt.isoformat()
-        except ValueError:
-            return None
-
-    if date_to:
-        try:
-            # Convert to end of day
-            dt = datetime.fromisoformat(date_to)
-            dt = dt.replace(hour=23, minute=59, second=59)
-            lte_date = dt.isoformat() + "Z" if not dt.tzinfo else dt.isoformat()
-        except ValueError:
-            return None
-
     return FieldCondition(
         key=field,
         range=DatetimeRange(
-            gte=gte_date,
-            lte=lte_date,
+            gte=datetime.fromisoformat(date_from).date(),
+            lte=datetime.fromisoformat(date_to).date(),
         ),
     )
 
