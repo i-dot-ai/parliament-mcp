@@ -16,8 +16,9 @@ import httpx
 from aiolimiter import AsyncLimiter
 from async_lru import alru_cache
 from chonkie import RecursiveChunker
+from fastembed import SparseTextEmbedding
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import PointStruct
+from qdrant_client.models import PointStruct, SparseVector
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -119,6 +120,7 @@ class QdrantDataLoader:
         self.openai_client = get_openai_client(self.settings)
 
         self.chunker = RecursiveChunker()
+        self.sparse_text_embedding = SparseTextEmbedding(model_name="Qdrant/bm25")
 
     async def get_total_results(self, url: str, params: dict, count_key: str = "TotalResultCount") -> int:
         """Get total results count from API endpoint"""
@@ -180,14 +182,24 @@ class QdrantDataLoader:
             dimensions=self.settings.EMBEDDING_DIMENSIONS,
         )
 
+        sparse_embeddings = list(self.sparse_text_embedding.embed(chunk_texts))
+
         # Create points for chunks
         points = [
             PointStruct(
                 id=self._generate_point_id(chunk["chunk_id"]),
-                vector=embedding,
+                vector={
+                    "text_sparse": SparseVector(
+                        indices=sparse_embedding.indices,
+                        values=sparse_embedding.values,
+                    ),
+                    "text_dense": dense_embedding,
+                },
                 payload=chunk,
             )
-            for chunk, embedding in zip(chunked_documents, embedded_chunks, strict=True)
+            for chunk, dense_embedding, sparse_embedding in zip(
+                chunked_documents, embedded_chunks, sparse_embeddings, strict=True
+            )
         ]
 
         # Upsert the chunks
@@ -379,7 +391,7 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
                                 new_questions.append(question)
 
                     if new_questions:
-                        await self.store_in_qdrant(new_questions)
+                        await self.store_in_qdrant_batch(new_questions)
 
                     self.progress.update(task, advance=len(questions_response.questions))
             except Exception:

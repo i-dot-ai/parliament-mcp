@@ -8,10 +8,11 @@ import sentry_sdk
 from mcp.server.fastmcp.server import FastMCP
 from pydantic import Field
 
+from parliament_mcp.embedding_helpers import get_openai_client
+from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
-from . import handlers
 from .utils import log_tool_call, request_members_api, sanitize_params
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,11 @@ logger = logging.getLogger(__name__)
 async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
     """Manage application lifecycle with type-safe context"""
     # Initialize on startup
+
+    openai_client = get_openai_client(settings)
     async with get_async_qdrant_client(settings) as qdrant_client:
         yield {
-            "qdrant_client": qdrant_client,
+            "qdrant_query_handler": QdrantQueryHandler(qdrant_client, openai_client, settings),
         }
 
 
@@ -275,12 +278,8 @@ async def search_parliamentary_questions(
     - Provide a member id to search for all written questions by a specific member for all time
     """
     ctx = mcp_server.get_context()
-    # Access qdrant_client through request_context.lifespan_context
-    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
-    result = await handlers.search_parliamentary_questions(
-        qdrant_client=qdrant_client,
-        collection=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
-        settings=settings,
+    qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
+    result = await qdrant_query_handler.search_parliamentary_questions(
         query=query,
         dateFrom=dateFrom,
         dateTo=dateTo,
@@ -331,12 +330,8 @@ async def search_debates(
         List of debate details dictionaries
     """
     ctx = mcp_server.get_context()
-    # Access qdrant_client through request_context.lifespan_context
-    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
-    result = await handlers.search_debates(
-        qdrant_client=qdrant_client,
-        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-        settings=settings,
+    qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
+    result = await qdrant_query_handler.search_debates(
         query=query,
         date_from=dateFrom,
         date_to=dateTo,
@@ -391,12 +386,8 @@ async def search_contributions(
             - member_id: ID of the member who made the contribution
     """
     ctx = mcp_server.get_context()
-    # Access qdrant_client through request_context.lifespan_context
-    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
-    result = await handlers.search_hansard_contributions(
-        qdrant_client=qdrant_client,
-        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-        settings=settings,
+    qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
+    result = await qdrant_query_handler.search_hansard_contributions(
         query=query,
         memberId=memberId,
         dateFrom=dateFrom,

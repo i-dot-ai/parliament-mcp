@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import Distance, PointStruct, SparseVectorParams, VectorParams
 
 from parliament_mcp.settings import ParliamentMCPSettings
 
@@ -64,7 +64,10 @@ async def create_collection_if_none(
     if not await collection_exists(client, collection_name):
         await client.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(size=vector_size, distance=distance),
+            vectors_config={
+                "text_dense": VectorParams(size=vector_size, distance=distance),
+            },
+            sparse_vectors_config={"text_sparse": SparseVectorParams()},
         )
         logger.info("Created collection - %s", collection_name)
     else:

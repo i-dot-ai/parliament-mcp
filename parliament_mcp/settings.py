@@ -104,6 +104,9 @@ class ParliamentMCPSettings(BaseSettings):
 
     EMBEDDING_DIMENSIONS: int = 1024
 
+    # Sparse text embedding model
+    SPARSE_TEXT_EMBEDDING_MODEL: str = "Qdrant/bm25"
+
     # Chunking settings
     # See https://www.elastic.co/search-labs/blog/elasticsearch-chunking-inference-api-endpoints
     CHUNK_SIZE: int = 300
