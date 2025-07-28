@@ -47,31 +47,31 @@ logs_all:
 
 # Qdrant Commands
 init_qdrant:
-	docker compose exec mcp-server uv run parliament-mcp --log-level INFO init-qdrant
+	uv run parliament-mcp --log-level INFO init-qdrant
 
 load_data_last_3_days: init_qdrant
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "3 days ago" --to-date "today"
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "3 days ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data hansard --from-date "3 days ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "3 days ago" --to-date "today"
 
 load_data_last_week: init_qdrant
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "1 week ago" --to-date "today"
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "1 week ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data hansard --from-date "1 week ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "1 week ago" --to-date "today"
 
 load_reference_week: init_qdrant
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2025-06-23 --to-date 2025-06-27
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2025-06-23 --to-date 2025-06-27
+	uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2025-06-23 --to-date 2025-06-27
+	uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2025-06-23 --to-date 2025-06-27
 
 load_data_since_2020: init_qdrant
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2020-01-01 --to-date "today"
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2020-01-01 --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data hansard --from-date 2020-01-01 --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date 2020-01-01 --to-date "today"
 
 .PHONY: ingest_daily
 ingest_daily: init_qdrant
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data hansard --from-date "2 days ago" --to-date "today"
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "2 days ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data hansard --from-date "2 days ago" --to-date "today"
+	uv run parliament-mcp --log-level WARNING load-data parliamentary-questions --from-date "2 days ago" --to-date "today"
 
 delete_qdrant_data:
-	docker compose exec mcp-server uv run parliament-mcp --log-level WARNING delete-qdrant
+	uv run parliament-mcp --log-level WARNING delete-qdrant
 
 # MCP Development Commands
 .PHONY: mcp_test

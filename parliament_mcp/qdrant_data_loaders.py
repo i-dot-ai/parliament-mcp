@@ -333,17 +333,16 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         to_date: str = "2025-01-10",
     ) -> None:
         """Load Parliamentary Questions for a date range."""
+        seen_ids = set()
         with self.progress_context():
-            async with asyncio.TaskGroup() as tg:
-                # Load by both tabled and answered dates
-                tg.create_task(self._load_questions_by_date_type("tabled", from_date, to_date))
-                tg.create_task(self._load_questions_by_date_type("answered", from_date, to_date))
+            # Load by both tabled and answered dates sequentially to benefit from seen_ids deduplication
+            await self._load_questions_by_date_type("tabled", from_date, to_date, seen_ids)
+            await self._load_questions_by_date_type("answered", from_date, to_date, seen_ids)
 
     async def _load_questions_by_date_type(
-        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str
+        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str, seen_ids: set[str]
     ) -> None:
         """Load questions filtered by specific date type."""
-        seen_ids: set[str] = set()
 
         base_params = {
             "expandMember": "true",

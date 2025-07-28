@@ -17,24 +17,8 @@ async def get_async_qdrant_client(settings: ParliamentMCPSettings) -> AsyncGener
 
     Supports both cloud (via API key) and local connections.
     """
-    if settings.QDRANT_API_KEY and settings.QDRANT_URL:
-        logger.info("Connecting to Qdrant Cloud at %s", settings.QDRANT_URL)
-        client = AsyncQdrantClient(
-            url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY,
-            timeout=30,
-        )
-    else:
-        logger.info(
-            "Connecting to Qdrant at %s:%s",
-            settings.QDRANT_HOST,
-            settings.QDRANT_PORT,
-        )
-        client = AsyncQdrantClient(
-            host=settings.QDRANT_HOST,
-            port=settings.QDRANT_PORT,
-            timeout=30,
-        )
+    logger.info("Connecting to Qdrant at %s", settings.QDRANT_URL)
+    client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY, timeout=30)
 
     try:
         yield client
@@ -56,7 +40,7 @@ async def create_collection_if_none(
     client: AsyncQdrantClient,
     collection_name: str,
     vector_size: int,
-    distance: Distance = Distance.COSINE,
+    distance: Distance = Distance.DOT,
 ) -> None:
     """Create Qdrant collection if it doesn't exist."""
     logger.info("Creating collection - %s", collection_name)

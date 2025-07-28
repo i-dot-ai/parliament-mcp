@@ -3,6 +3,7 @@ from itertools import batched
 
 import httpx
 from openai import AsyncAzureOpenAI
+from tenacity import retry, stop_after_attempt
 
 from parliament_mcp.settings import ParliamentMCPSettings
 
@@ -34,6 +35,7 @@ async def embed_single(
     return response.data[0].embedding
 
 
+@retry(stop=stop_after_attempt(3))
 async def embed_batch(
     client: AsyncAzureOpenAI,
     texts: list[str],

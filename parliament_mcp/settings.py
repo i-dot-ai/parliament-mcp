@@ -81,17 +81,6 @@ class ParliamentMCPSettings(BaseSettings):
     def QDRANT_API_KEY(self) -> str | None:
         return get_environment_or_ssm("QDRANT_API_KEY", f"/{self._get_project_name()}/env_secrets/QDRANT_API_KEY")
 
-    @property
-    def QDRANT_HOST(self) -> str:
-        return get_environment_or_ssm(
-            "QDRANT_HOST", f"/{self._get_project_name()}/env_secrets/QDRANT_HOST", "localhost"
-        )
-
-    @property
-    def QDRANT_PORT(self) -> int:
-        port_str = get_environment_or_ssm("QDRANT_PORT", f"/{self._get_project_name()}/env_secrets/QDRANT_PORT", "6333")
-        return int(port_str) if port_str.isdigit() else 6333
-
     AUTH_PROVIDER_PUBLIC_KEY: str | None = None
     DISABLE_AUTH_SIGNATURE_VERIFICATION: bool = ENVIRONMENT == "local"
 
