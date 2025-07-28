@@ -12,14 +12,6 @@ locals {
       value = "placeholder" # Update value in SSM - Do not hardcode - Empty value will disable sentry
     },
     {
-      name = "QDRANT_HOST"
-      value = "placeholder"
-    },
-    {
-      name = "QDRANT_PORT"
-      value = "6333"
-    },
-    {
       name = "QDRANT_URL"
       value = "placeholder"
     },

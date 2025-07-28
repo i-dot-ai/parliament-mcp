@@ -13,7 +13,7 @@ module "qdrant" {
   # checkov:skip=CKV_SECRET_4:Skip secret check as these have to be used within the Github Action
   # checkov:skip=CKV_TF_1: We're using semantic versions instead of commit hash
   #source                      = "../../i-dot-ai-core-terraform-modules//modules/infrastructure/ecs" # For testing local changes
-  source                       = "git::https://github.com/i-dot-ai/i-dot-ai-core-terraform-modules.git//modules/infrastructure/ecs?ref=v5.0.0-ecs"
+  source                       = "git::https://github.com/i-dot-ai/i-dot-ai-core-terraform-modules.git//modules/infrastructure/ecs?ref=v5.3.0-ecs"
 
   # Using public Qdrant image - no ECR repository needed
   image_tag                    = "latest"
@@ -44,22 +44,23 @@ module "qdrant" {
     "QDRANT__LOG_LEVEL" = terraform.workspace == "prod" ? "warn" : "info"
     "QDRANT__SERVICE__HTTP_PORT" = tostring(local.qdrant_port)
 
-    # Adjust thresholds for millions of vectors
-    "QDRANT__STORAGE__PERFORMANCE__OPTIMIZERS__MEMMAP_THRESHOLD" = "100000"
-    "QDRANT__STORAGE__PERFORMANCE__OPTIMIZERS__INDEXING_THRESHOLD" = "100000"
+    # Storage optimizers for millions of vectors
+    "QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB" = "100000"  # Enable memmap for segments >100MB
+    "QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB" = "100000"  # Index segments >100MB
+    "QDRANT__STORAGE__OPTIMIZERS__MAX_SEGMENT_SIZE_KB" = "5000000"  # 5GB max segment size
+    "QDRANT__STORAGE__OPTIMIZERS__MAX_OPTIMIZATION_THREADS" = "4"  # Optimization parallelism
 
-    # HNSW tuning for large scale
+    # HNSW tuning for large scale (storage-level defaults)
     "QDRANT__STORAGE__HNSW_INDEX__M" = "32"  # Increased for better recall at scale
     "QDRANT__STORAGE__HNSW_INDEX__EF_CONSTRUCT" = "400"  # Higher for better index quality
-    "QDRANT__STORAGE__HNSW_INDEX__FULL_SCAN_THRESHOLD" = "50000"  # Increased threshold
+    "QDRANT__STORAGE__HNSW_INDEX__FULL_SCAN_THRESHOLD_KB" = "50000"  # Increased threshold (KB)
+    "QDRANT__STORAGE__HNSW_INDEX__MAX_INDEXING_THREADS" = "4"  # Parallel indexing threads
 
-    # Critical for millions of vectors
-    "QDRANT__STORAGE__PERFORMANCE__MAX_SEGMENT_SIZE" = "8000000"  # 8GB segments
-    "QDRANT__STORAGE__PERFORMANCE__MAX_OPTIMIZATION_THREADS" = "4"  # Adjust to your CPU
-    "QDRANT__STORAGE__WAL__WAL_CAPACITY" = "134217728"  # 128MB WAL
+    # Performance tuning for large scale
+    "QDRANT__PERFORMANCE__MAX_SEARCH_THREADS" = "4"  # Search parallelism
 
     # Memory management
-    "QDRANT__SERVICE__MAX_REQUEST_SIZE" = "67108864"  # 64MB for batch operations
+    "QDRANT__SERVICE__MAX_REQUEST_SIZE_MB" = "64"  # 64MB for batch operations
   }
 
   efs_mount_configuration = [
