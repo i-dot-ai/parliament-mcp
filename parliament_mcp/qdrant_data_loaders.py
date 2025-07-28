@@ -333,14 +333,18 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         to_date: str = "2025-01-10",
     ) -> None:
         """Load Parliamentary Questions for a date range."""
-        seen_ids = set()
+        # Shared seen_ids to avoid reprocessing questions that appear in both date ranges
+        seen_ids: set[str] = set()
         with self.progress_context():
-            # Load by both tabled and answered dates sequentially to benefit from seen_ids deduplication
-            await self._load_questions_by_date_type("tabled", from_date, to_date, seen_ids)
-            await self._load_questions_by_date_type("answered", from_date, to_date, seen_ids)
+            tabled_task_id = self.progress.add_task("Loading 'tabled' questions", total=0, completed=0, start=False)
+            answered_task_id = self.progress.add_task("Loading 'answered' questions", total=0, completed=0, start=False)
+
+            # Load sequentially to benefit from seen_ids deduplication
+            await self._load_questions_by_date_type("tabled", from_date, to_date, seen_ids, task_id=tabled_task_id)
+            await self._load_questions_by_date_type("answered", from_date, to_date, seen_ids, task_id=answered_task_id)
 
     async def _load_questions_by_date_type(
-        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str, seen_ids: set[str]
+        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str, seen_ids: set[str], task_id: int
     ) -> None:
         """Load questions filtered by specific date type."""
 
@@ -353,15 +357,8 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         url = f"{PQS_BASE_URL}/writtenquestions/questions"
         total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0}, "totalResults")
 
-        task = self.progress.add_task(
-            f"Loading PQs ({date_type} {from_date} - {to_date})",
-            total=total_results,
-            completed=0,
-        )
-
-        if total_results == 0:
-            self.progress.update(task, completed=total_results)
-            return
+        self.progress.start_task(task_id)
+        self.progress.update(task_id, total=total_results, completed=0)
 
         semaphore = asyncio.Semaphore(3)
 
@@ -392,7 +389,7 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
                     if new_questions:
                         await self.store_in_qdrant_batch(new_questions)
 
-                    self.progress.update(task, advance=len(questions_response.questions))
+                    self.progress.update(task_id, advance=len(questions_response.questions))
             except Exception:
                 logger.exception("Failed to process PQ page - %s", query_params)
                 raise
