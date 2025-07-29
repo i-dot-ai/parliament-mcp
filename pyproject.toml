@@ -70,6 +70,10 @@ dev = [
     "sentry-sdk>=2.18.0",
     "qdrant-client[fastembed]>=1.15.0",
 ]
+transfer-from-es = [
+    "click>=8.2.1",
+    "elasticsearch<9",
+]
 
 [build-system]
 requires = ["hatchling"]
