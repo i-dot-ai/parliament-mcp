@@ -17,9 +17,10 @@ Usage:
 
 import asyncio
 import logging
+import os
 
 import click
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 from elasticsearch import AsyncElasticsearch
 from rich.progress import Progress
 
@@ -30,30 +31,55 @@ from parliament_mcp.settings import settings
 
 logger = logging.getLogger(__name__)
 
-config = dotenv_values()
+load_dotenv()
+
+# Configuration for each document type
+CONFIGS = {
+    "pqs": {
+        "es_index": "lex-parliamentary-questions-prod-may-2025",
+        "qdrant_collection": settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        "model": ParliamentaryQuestion,
+        "text_fields": ["questionText", "answerText"],
+        "excludes": ["questionText.inference", "answerText.inference", "document_uri"],
+        "description": "PQs",
+    },
+    "hansard": {
+        "es_index": "parliament_mcp_hansard_contributions",
+        "qdrant_collection": settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        "model": Contribution,
+        "text_fields": ["ContributionTextFull"],
+        "excludes": ["ContributionTextFull.inference", "document_uri", "contribution_url", "debate_url"],
+        "description": "Hansard contributions",
+    },
+}
 
 
-async def transfer_pqs(limit=None, batch_size=100):
-    """Transfer Parliamentary Questions from ES to Qdrant."""
+def get_es_client():
+    return AsyncElasticsearch(
+        cloud_id=os.environ["ELASTICSEARCH_CLOUD_ID"],
+        api_key=os.environ["ELASTICSEARCH_API_KEY"],
+    )
 
-    es_index_name = "lex-parliamentary-questions-prod-may-2025"
 
-    es = AsyncElasticsearch(cloud_id=config["ELASTICSEARCH_CLOUD_ID"], api_key=config["ELASTICSEARCH_API_KEY"])
-    async with get_async_qdrant_client(settings=settings) as qdrant_client:
-        loader = QdrantDataLoader(qdrant_client, settings.PARLIAMENTARY_QUESTIONS_COLLECTION, settings)
+async def transfer_documents(doc_type, limit=None, batch_size=100):
+    """Generic document transfer from Elasticsearch to Qdrant."""
+    config_data = CONFIGS[doc_type]
+
+    async with get_async_qdrant_client(settings=settings) as qdrant, get_es_client() as es:
+        loader = QdrantDataLoader(qdrant, config_data["qdrant_collection"], settings)
 
         # Get total count
-        total = (await es.count(index=es_index_name))["count"]
+        total = (await es.count(index=config_data["es_index"]))["count"]
         if limit:
             total = min(total, limit)
 
         # Start scrolling
         resp = await es.search(
-            index=es_index_name,
+            index=config_data["es_index"],
             scroll="5m",
             body={
                 "query": {"match_all": {}},
-                "_source": {"excludes": ["questionText.inference", "answerText.inference", "document_uri"]},
+                "_source": {"excludes": config_data["excludes"]},
                 "size": batch_size,
             },
         )
@@ -63,89 +89,30 @@ async def transfer_pqs(limit=None, batch_size=100):
         processed = 0
 
         with Progress() as progress:
-            task = progress.add_task("Transferring PQs...", total=total)
+            task = progress.add_task(f"Transferring {config_data['description']}...", total=total)
+
             while hits and (not limit or processed < limit):
-                # Transform hits
-                docs = []
-                for hit in hits:
+                # Transform and store batch
+                def flatten_doc(hit):
                     doc = hit["_source"]
-                    # Handle nested text fields
-                    doc["questionText"] = doc["questionText"]["text"]
-                    doc["answerText"] = doc["answerText"]["text"]
-                    docs.append(ParliamentaryQuestion.model_validate(doc))
+                    for field in config_data["text_fields"]:
+                        if field in doc and isinstance(doc[field], dict):
+                            doc[field] = doc[field]["text"]
+                    return config_data["model"].model_validate(doc)
 
-                # Store batch
+                docs = [flatten_doc(hit) for hit in hits]
                 await loader.store_in_qdrant_batch(docs)
-
                 processed += len(hits)
                 progress.update(task, advance=len(hits))
 
-                # Next batch
+                # Get next batch
                 resp = await es.scroll(scroll_id=scroll_id, scroll="5m")
                 hits = resp["hits"]["hits"]
 
         await es.clear_scroll(scroll_id=scroll_id)
         await es.close()
 
-    logger.info("✓ Transferred %s PQs", processed)
-
-
-async def transfer_hansard(limit=None, batch_size=100):
-    """Transfer Hansard contributions from ES to Qdrant."""
-    es_index_name = "parliament_mcp_hansard_contributions"
-    qdrant_collection_name = "parliament_mcp_hansard_contributions"
-
-    es = AsyncElasticsearch(cloud_id=config["ELASTICSEARCH_CLOUD_ID"], api_key=config["ELASTICSEARCH_API_KEY"])
-    async with get_async_qdrant_client(settings=settings) as qdrant_client:
-        loader = QdrantDataLoader(qdrant_client, qdrant_collection_name, settings)
-
-        # Get total count
-        total = (await es.count(index=es_index_name))["count"]
-        if limit:
-            total = min(total, limit)
-
-        # Start scrolling
-        resp = await es.search(
-            index=es_index_name,
-            scroll="5m",
-            size=batch_size,
-            body={
-                "query": {"match_all": {}},
-                "_source": {
-                    "excludes": ["ContributionTextFull.inference", "document_uri", "contribution_url", "debate_url"]
-                },
-            },
-        )
-
-        scroll_id = resp["_scroll_id"]
-        hits = resp["hits"]["hits"]
-        processed = 0
-
-        with Progress() as progress:
-            task = progress.add_task("Transferring Hansard...", total=total)
-            while hits and (not limit or processed < limit):
-                # Transform hits
-                docs = []
-                for hit in hits:
-                    doc = hit["_source"]
-                    # Handle nested text fields
-                    doc["ContributionTextFull"] = doc["ContributionTextFull"]["text"]
-                    docs.append(Contribution.model_validate(doc))
-
-                # Store batch
-                await loader.store_in_qdrant_batch(docs)
-
-                processed += len(hits)
-                progress.update(task, advance=len(hits))
-
-                # Next batch
-                resp = await es.scroll(scroll_id=scroll_id, scroll="5m")
-                hits = resp["hits"]["hits"]
-
-        await es.clear_scroll(scroll_id=scroll_id)
-        await es.close()
-
-    logger.info("✓ Transferred %s Hansard contributions", processed)
+    logger.info("✓ Transferred %d %s", processed, config_data["description"])
 
 
 @click.group()
@@ -158,7 +125,7 @@ def cli():
 @click.option("--batch-size", type=int, default=100)
 def pqs(limit, batch_size):
     """Transfer Parliamentary Questions."""
-    asyncio.run(transfer_pqs(limit, batch_size))
+    asyncio.run(transfer_documents("pqs", limit, batch_size))
 
 
 @cli.command()
@@ -166,7 +133,7 @@ def pqs(limit, batch_size):
 @click.option("--batch-size", type=int, default=100)
 def hansard(limit, batch_size):
     """Transfer Hansard contributions."""
-    asyncio.run(transfer_hansard(limit, batch_size))
+    asyncio.run(transfer_documents("hansard", limit, batch_size))
 
 
 if __name__ == "__main__":
