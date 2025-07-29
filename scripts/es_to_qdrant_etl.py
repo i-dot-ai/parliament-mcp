@@ -1,18 +1,11 @@
-#!/usr/bin/env -S uv run --script
-#
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["parliament-mcp"]
-# ///
-# [tool.uv.sources]
-# parliament-mcp = { path = "..", group = "transfer-from-es" }
+#!/usr/bin/env python
 
 """
 Transfer Parliamentary Questions and Hansard contributions from Elasticsearch to Qdrant.
 
 Usage:
-    ./scripts/es_to_qdrant_etl.py pqs --limit 100 --batch-size 100
-    ./scripts/es_to_qdrant_etl.py hansard --limit 100 --batch-size 100
+    uv run python scripts/es_to_qdrant_etl.py pqs --limit 100 --batch-size 100
+    uv run python scripts/es_to_qdrant_etl.py hansard --limit 100 --batch-size 100
 """
 
 import asyncio
@@ -22,7 +15,16 @@ import os
 import click
 from dotenv import load_dotenv
 from elasticsearch import AsyncElasticsearch
-from rich.progress import Progress
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from parliament_mcp.models import Contribution, ParliamentaryQuestion
 from parliament_mcp.qdrant_data_loaders import QdrantDataLoader
@@ -88,7 +90,18 @@ async def transfer_documents(doc_type, limit=None, batch_size=100):
         hits = resp["hits"]["hits"]
         processed = 0
 
-        with Progress() as progress:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TaskProgressColumn(),
+            TextColumn("Elapsed: "),
+            TimeElapsedColumn(),
+            TextColumn("Remaining: "),
+            TimeRemainingColumn(),
+            expand=True,
+        ) as progress:
             task = progress.add_task(f"Transferring {config_data['description']}...", total=total)
 
             while hits and (not limit or processed < limit):
