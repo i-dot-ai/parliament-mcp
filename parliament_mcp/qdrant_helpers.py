@@ -205,8 +205,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
         field_name="house",
-        field_type=models.TextIndexParams(
-            type=models.TextIndexType.TEXT,
+        field_type=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
             on_disk=True,
         ),
         wait=False,
@@ -239,6 +239,16 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_name="MemberId",
         field_type=models.IntegerIndexParams(
             type=models.IntegerIndexType.INTEGER,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="House",
+        field_type=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
             on_disk=True,
         ),
         wait=False,

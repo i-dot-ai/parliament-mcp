@@ -80,6 +80,8 @@ async def test_pmqs_are_on_wednesdays(qdrant_query_handler: QdrantQueryHandler):
     results = await qdrant_query_handler.search_debates(
         # Not technically the title of the debate, but good to test with
         query="Prime Minister's Questions",
+        date_from="2025-01-01",
+        date_to="2025-07-31",
     )
     any_pmqs_found = False
     for result in results:

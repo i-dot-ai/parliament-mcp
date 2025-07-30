@@ -3,6 +3,8 @@
 """
 Transfer Parliamentary Questions and Hansard contributions from Elasticsearch to Qdrant.
 
+Used for a once off transfer of data from Elasticsearch to Qdrant.
+
 Usage:
     uv sync --group transfer-from-es
     uv run python scripts/es_to_qdrant_etl.py pqs --limit 100 --batch-size 100
@@ -241,13 +243,16 @@ async def transfer_documents(doc_type, limit=None, batch_size=100, concurrent_wo
         total = (
             await es.count(
                 index=config_data["es_index"],
-                body={"query": {"range": {config_data["date_field"]: {
-                            "gte": config_data["from_date"],
-                            "lte": config_data["to_date"],
+                body={
+                    "query": {
+                        "range": {
+                            config_data["date_field"]: {
+                                "gte": config_data["from_date"],
+                                "lte": config_data["to_date"],
+                            }
                         }
                     }
-                }
-            },
+                },
             )
         )["count"]
         if limit:

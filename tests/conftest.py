@@ -207,6 +207,7 @@ async def qdrant_cloud_test_client() -> AsyncGenerator[AsyncQdrantClient]:
     qdrant_client = AsyncQdrantClient(
         url=settings.QDRANT_URL,
         api_key=settings.QDRANT_API_KEY,
+        timeout=30.0,
     )
     yield qdrant_client
     await qdrant_client.close()
