@@ -10,6 +10,7 @@ from rich.logging import RichHandler
 
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
 from parliament_mcp.qdrant_helpers import (
+    create_collection_indicies,
     delete_collection_if_exists,
     get_async_qdrant_client,
     initialize_qdrant_collections,
@@ -45,6 +46,7 @@ async def init_qdrant(qdrant_client: AsyncQdrantClient, settings: ParliamentMCPS
     """Initialises Qdrant collections."""
     logger.info("Initialising Qdrant collections.")
     await initialize_qdrant_collections(qdrant_client, settings)
+    await create_collection_indicies(qdrant_client, settings)
 
 
 def create_parser():

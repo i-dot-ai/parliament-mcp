@@ -199,3 +199,14 @@ async def test_mcp_agent(test_mcp_server: MCPServerStreamableHttp):
         mcp_servers=[test_mcp_server],
     )
     yield agent
+
+
+@pytest_asyncio.fixture(scope="session")
+async def qdrant_cloud_test_client() -> AsyncGenerator[AsyncQdrantClient]:
+    """Qdrant client with test data loaded (only loads once per session)."""
+    qdrant_client = AsyncQdrantClient(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+    )
+    yield qdrant_client
+    await qdrant_client.close()
