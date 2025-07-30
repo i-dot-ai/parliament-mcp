@@ -41,6 +41,7 @@ dependencies = [
     "fastapi[standard]>=0.115.13",
     "uvicorn>=0.34.3",
     "chonkie>=1.1.1",
+    "boto3>=1.39.12",
 ]
 
 [project.scripts]
