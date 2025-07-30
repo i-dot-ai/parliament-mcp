@@ -49,6 +49,9 @@ CONFIGS = {
         "excludes": ["questionText.inference", "answerText.inference", "document_uri"],
         "description": "PQs",
         "expected_documents": 600000,  # 593,281 documents
+        "from_date": "1900-01-01",
+        "date_field": "dateTabled",
+        "to_date": "2020-01-01",
     },
     "hansard": {
         "es_index": "parliament_mcp_hansard_contributions",
@@ -58,6 +61,9 @@ CONFIGS = {
         "excludes": ["ContributionTextFull.inference", "document_uri", "contribution_url", "debate_url"],
         "description": "Hansard contributions",
         "expected_documents": 2400000,  # 2,389,496 documents
+        "from_date": "1900-01-01",
+        "to_date": "2020-01-01",
+        "date_field": "SittingDate",
     },
 }
 
@@ -135,7 +141,14 @@ async def es_batch_generator(es, config_data, batch_size=100, limit=None):
             index=config_data["es_index"],
             scroll="5m",
             body={
-                "query": {"match_all": {}},
+                "query": {
+                    "range": {
+                        config_data["date_field"]: {
+                            "gte": config_data["from_date"],
+                            "lte": config_data["to_date"],
+                        }
+                    }
+                },
                 "_source": {"excludes": config_data["excludes"]},
                 "size": batch_size,
             },
@@ -225,7 +238,18 @@ async def transfer_documents(doc_type, limit=None, batch_size=100, concurrent_wo
             )
 
         # Get total count
-        total = (await es.count(index=config_data["es_index"]))["count"]
+        total = (
+            await es.count(
+                index=config_data["es_index"],
+                body={"query": {"range": {config_data["date_field"]: {
+                            "gte": config_data["from_date"],
+                            "lte": config_data["to_date"],
+                        }
+                    }
+                }
+            },
+            )
+        )["count"]
         if limit:
             total = min(total, limit)
 
