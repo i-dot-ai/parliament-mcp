@@ -6,8 +6,8 @@ An MCP server that roughly maps onto a subset of https://developer.parliament.uk
 
 This project provides:
 - **MCP Server**: FastMCP-based server
-- **Python package**: A small python package for querying and loading parliamentary data from https://developer.parliament.uk/ into Elasticsearch
-- **Elasticsearch**: Document storage and search engine, setup to automatically embed documents and allow semantic search over Hansard and Parliamentary Questions data.
+- **Python package**: A small python package for querying and loading parliamentary data from https://developer.parliament.uk/ into Qdrant
+- **Qdrant**: Vector database for semantic search over Hansard and Parliamentary Questions data.
 - **Claude Integration**: Connect to Claude Desktop via `mcp-remote` proxy
 
 ## Features
@@ -28,7 +28,7 @@ The MCP Server exposes 11 tools to assist in parliamentary research:
 10. **`search_debates`** - Search through debate titles to find relevant debates
 11. **`search_contributions`** - Search Hansard parliamentary records for actual spoken contributions during debates
 
-## Quick Start (local elasticsearch)
+## Quick Start (local qdrant)
 
 You will need
 
@@ -39,7 +39,7 @@ You will need
 
 Create a `.env` file by copying the `.env.example` in the project root and replace the necessary variables.
 
-After configuring your `.env` file, run the following command for a one shot setup of the MCP server and the Elasticsearch database with some example data from June 2025.
+After configuring your `.env` file, run the following command for a one shot setup of the MCP server and the Qdrant database with some example data from June 2025.
 
 ```bash
 make dev_setup_from_scratch
@@ -63,12 +63,12 @@ Once this is run, you can connect to the MCP server using this config
 
 ### 1. Clone, setup environment, and start services
 
-#### Note on Elasticsearch Configuration
+#### Note on Qdrant Configuration
 
-The system supports two methods for connecting to Elasticsearch:
+The system supports connecting to Qdrant:
 
-1. **Local/Self-hosted**: Use `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, and `ELASTICSEARCH_SCHEME`
-2. **Elasticsearch Cloud**: Use `ELASTICSEARCH_CLOUD_ID` and `ELASTICSEARCH_API_KEY` (automatically configures host, port, and scheme)
+1. **Local/Self-hosted**: Use `QDRANT_HOST` and `QDRANT_PORT` (defaults to localhost:6333)
+2. **Qdrant Cloud**: Use `QDRANT_URL` and `QDRANT_API_KEY` for cloud deployments
 
 ```bash
 # Clone the repo
@@ -79,19 +79,19 @@ cd parliament-mcp
 cp .env.example .env
 nano .env
 
-# Start Elasticsearch and MCP server
+# Start Qdrant and MCP server
 docker-compose up --build
 ```
 
 The services will be available at:
 - **MCP Server**: `http://localhost:8080/mcp/`
-- **Elasticsearch**: `http://localhost:9200`
+- **Qdrant**: `http://localhost:6333`
 
-### 3. Initialize Elasticsearch and Load Data
+### 3. Initialize Qdrant and Load Data
 
 ```bash
-# Initialise Elasticsearch
-docker compose exec mcp-server uv run parliament-mcp --log-level INFO init-elasticsearch
+# Initialise Qdrant
+docker compose exec mcp-server uv run parliament-mcp --log-level INFO init-qdrant
 
 # Load 2025-06-23 to 2025-06-27 hansard data
 docker compose exec mcp-server uv run parliament-mcp load-data hansard --from-date 2025-06-23 --to-date 2025-06-27
@@ -183,7 +183,7 @@ Claude should now have access to the Parliament MCP tools.
 
    # Development helpers
    make mcp_test        # Test MCP server connection
-   make es_health       # Check Elasticsearch health
+   make qdrant_health   # Check Qdrant health
    ```
 
 4. **Run the MCP server locally**:
@@ -202,7 +202,8 @@ parliament-mcp/
 │   ├── models.py            # Data models
 │   ├── mcp_server/          # MCP server implementation
 │   │   ├── api.py           # API endpoints and tool definitions
-│   │   ├── handlers.py      # Elasticsearch query handlers
+│   │   ├── handlers.py      # Query handlers
+│   │   ├── qdrant_handlers.py # Qdrant-specific handlers
 │   │   ├── main.py          # FastAPI application setup
 │   │   └── utils.py         # Utility functions
 │   └── ...                  # Other modules
@@ -219,8 +220,8 @@ parliament-mcp/
 The project includes a unified CLI for data management and server operations:
 
 ```bash
-# Initialize Elasticsearch indices and inference endpoints
-parliament-mcp init-elasticsearch
+# Initialize Qdrant collections
+parliament-mcp init-qdrant
 
 # Run the MCP server
 parliament-mcp serve
@@ -230,19 +231,19 @@ parliament-mcp load-data hansard --from-date "3 days ago" --to-date "today"
 parliament-mcp load-data parliamentary-questions --from-date "2025-01-01"
 
 # Delete all data
-parliament-mcp delete-elasticsearch
+parliament-mcp delete-qdrant
 ```
 
 ### Data Structure
 
 The system works with two main types of parliamentary documents:
 
-**Parliamentary Questions** (Index: `parliamentary_questions`):
+**Parliamentary Questions** (Collection: `parliamentary_questions`):
 - Written Questions with semantic search on question and answer text
 - Member information for asking and answering members
 - Date, reference numbers, and department details
 
-**Hansard Contributions** (Index: `hansard_contributions`):
+**Hansard Contributions** (Collection: `hansard_contributions`):
 - Spoken contributions from parliamentary debates
 - Semantic search on full contribution text
 - Speaker information and debate context
@@ -252,13 +253,13 @@ The system works with two main types of parliamentary documents:
 1. **Fetch** from Parliamentary APIs (Hansard API, Parliamentary Questions API)
 2. **Transform** into structured models with computed fields
 3. **Embed** using Azure OpenAI for semantic search
-4. **Index** into Elasticsearch with proper mappings
+4. **Index** into Qdrant with proper vector configurations
 
 Data is loaded automatically from official Parliamentary APIs - no manual document creation needed.
 
 ### Daily Data Ingestion
 
-To keep the data in Elasticsearch up-to-date, a daily ingestion mechanism is provided. This loads the last two days of data from both `hansard` and `parliamentary-questions` sources.
+To keep the data in Qdrant up-to-date, a daily ingestion mechanism is provided. This loads the last two days of data from both `hansard` and `parliamentary-questions` sources.
 
 To run the daily ingestion manually:
 
@@ -308,7 +309,7 @@ This will create a Docker image named `parliament-mcp-lambda:latest`.
 You can test the Lambda function locally using the AWS Lambda Runtime Interface Emulator (RIE), which is included in the base image.
 
 **Prerequisites:**
-- Your local Elasticsearch container must be running (`docker compose up -d elasticsearch`).
+- Your local Qdrant container must be running (`docker compose up -d qdrant`).
 - The Lambda container image must be built (`make docker_build_lambda`).
 
 **Run the container:**
@@ -318,7 +319,7 @@ A convenient way to provide the necessary environment variables is to use the `-
 ```bash
 docker run --rm -p 9000:8080 \
   --env-file .env \
-  -e ELASTICSEARCH_HOST="host.docker.internal" \
+  -e QDRANT_HOST="host.docker.internal" \
   parliament-mcp-lambda:latest
 ```
 
@@ -334,7 +335,7 @@ curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" -
 
 With the image pushed to ECR, you can create the Lambda with the following configurations
 
-  - Use `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, and `ELASTICSEARCH_SCHEME` to point to your elasticsearch cluster
+  - Use `QDRANT_HOST` and `QDRANT_PORT` to point to your Qdrant instance
   - Increase the default timeout to ~10 minutes to ensure the ingestion has enough time to complete
   - Use AWS's flavour of cron to schedule the task for ~4am every day - `cron(0 4 * * ? *)`
 
@@ -378,11 +379,11 @@ docker-compose logs mcp-server
 
 **Enable debug mode** in Claude config by adding `--debug` flag.
 
-**Check Elasticsearch status**:
+**Check Qdrant status**:
 ```bash
-curl http://localhost:9200/_cat/health?v
+curl http://localhost:6333/healthz
 # Or use the make command:
-make es_health
+make qdrant_health
 ```
 
 ## Troubleshooting
@@ -396,13 +397,13 @@ make es_health
 
 **Data Loading Failures**
 - Check Azure OpenAI credentials in `.env` file
-- Ensure Elasticsearch is running and accessible
+- Ensure Qdrant is running and accessible
 - Verify network connectivity to Parliamentary APIs
 - Use `--ll DEBUG` flag for detailed logging
 
-**Elasticsearch issues**
-- Verify inference endpoints are created: `parliament-mcp init-elasticsearch`
-- Use https://elasticvue.com/ to inspect the Elasticsearch instance
+**Qdrant issues**
+- Verify collections are created: `parliament-mcp init-qdrant`
+- Use the Qdrant Web UI at http://localhost:6333/dashboard to inspect collections
 
 ## Contributing
 

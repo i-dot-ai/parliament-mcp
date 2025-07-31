@@ -12,19 +12,11 @@ locals {
       value = "placeholder" # Update value in SSM - Do not hardcode - Empty value will disable sentry
     },
     {
-      name = "ELASTICSEARCH_HOST"
+      name = "QDRANT_URL"
       value = "placeholder"
     },
     {
-      name = "ELASTICSEARCH_PORT"
-      value = "placeholder"
-    },
-    {
-      name = "ELASTICSEARCH_CLOUD_ID"
-      value = "placeholder"
-    },
-    {
-      name = "ELASTICSEARCH_API_KEY"
+      name = "QDRANT_API_KEY"
       value = "placeholder"
     },
     {
@@ -33,10 +25,6 @@ locals {
     },
     {
       name = "AZURE_OPENAI_ENDPOINT"
-      value = "placeholder"
-    },
-    {
-      name = "AZURE_OPENAI_RESOURCE_NAME"
       value = "placeholder"
     },
     {

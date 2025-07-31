@@ -8,7 +8,7 @@ import sentry_sdk
 from mcp.server.fastmcp.server import FastMCP
 from pydantic import Field
 
-from parliament_mcp.elasticsearch_helpers import get_async_es_client
+from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
 from . import handlers
@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
     """Manage application lifecycle with type-safe context"""
     # Initialize on startup
-    async with get_async_es_client(settings) as es_client:
+    async with get_async_qdrant_client(settings) as qdrant_client:
         yield {
-            "es_client": es_client,
+            "qdrant_client": qdrant_client,
         }
 
 
@@ -275,11 +275,12 @@ async def search_parliamentary_questions(
     - Provide a member id to search for all written questions by a specific member for all time
     """
     ctx = mcp_server.get_context()
-    # Access es_client through request_context.lifespan_context
-    es_client = ctx.request_context.lifespan_context["es_client"]
+    # Access qdrant_client through request_context.lifespan_context
+    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
     result = await handlers.search_parliamentary_questions(
-        es_client=es_client,
-        index=settings.PARLIAMENTARY_QUESTIONS_INDEX,
+        qdrant_client=qdrant_client,
+        collection=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        settings=settings,
         query=query,
         dateFrom=dateFrom,
         dateTo=dateTo,
@@ -330,11 +331,12 @@ async def search_debates(
         List of debate details dictionaries
     """
     ctx = mcp_server.get_context()
-    # Access es_client through request_context.lifespan_context
-    es_client = ctx.request_context.lifespan_context["es_client"]
+    # Access qdrant_client through request_context.lifespan_context
+    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
     result = await handlers.search_debates(
-        es_client=es_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         query=query,
         date_from=dateFrom,
         date_to=dateTo,
@@ -389,11 +391,12 @@ async def search_contributions(
             - member_id: ID of the member who made the contribution
     """
     ctx = mcp_server.get_context()
-    # Access es_client through request_context.lifespan_context
-    es_client = ctx.request_context.lifespan_context["es_client"]
+    # Access qdrant_client through request_context.lifespan_context
+    qdrant_client = ctx.request_context.lifespan_context["qdrant_client"]
     result = await handlers.search_hansard_contributions(
-        es_client=es_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         query=query,
         memberId=memberId,
         dateFrom=dateFrom,

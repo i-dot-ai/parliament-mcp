@@ -1,10 +1,13 @@
 import asyncio
+import hashlib
 import logging
 import os
 import tempfile
+import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import timedelta
+from itertools import chain
 from pathlib import Path
 from typing import Literal
 
@@ -12,8 +15,9 @@ import hishel
 import httpx
 from aiolimiter import AsyncLimiter
 from async_lru import alru_cache
-from elasticsearch import AsyncElasticsearch
-from elasticsearch.helpers import BulkIndexError, async_bulk
+from chonkie import RecursiveChunker
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.models import PointStruct
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -25,12 +29,13 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from parliament_mcp.embedding_helpers import embed_batch, get_openai_client
 from parliament_mcp.models import (
     ContributionsResponse,
     DebateParent,
-    ElasticDocument,
     ParliamentaryQuestion,
     ParliamentaryQuestionsResponse,
+    QdrantDocument,
 )
 from parliament_mcp.settings import ParliamentMCPSettings, settings
 
@@ -39,7 +44,7 @@ logger = logging.getLogger(__name__)
 HANSARD_BASE_URL = "https://hansard-api.parliament.uk"
 PQS_BASE_URL = "https://questions-statements-api.parliament.uk/api"
 
-
+# HTTP rate limiter
 _http_client_rate_limiter = AsyncLimiter(max_rate=settings.HTTP_MAX_RATE_PER_SECOND, time_period=1.0)
 
 
@@ -56,7 +61,7 @@ async def cached_limited_get(*args, **kwargs) -> httpx.Response:
 
     async with (
         hishel.AsyncCacheClient(
-            timeout=30,
+            timeout=120,
             headers={"User-Agent": "parliament-mcp"},
             storage=hishel.AsyncFileStorage(base_path=cache_dir, ttl=timedelta(days=1).total_seconds()),
             transport=httpx.AsyncHTTPTransport(retries=3),
@@ -103,13 +108,17 @@ async def load_section_trees(date: str, house: Literal["Commons", "Lords"]) -> d
     return section_tree_map
 
 
-class ElasticDataLoader:
-    """Base class for loading data into Elasticsearch with progress tracking."""
+class QdrantDataLoader:
+    """Base class for loading data into Qdrant with progress tracking."""
 
-    def __init__(self, elastic_client: AsyncElasticsearch, index_name: str):
-        self.elastic_client = elastic_client
-        self.index_name = index_name
+    def __init__(self, qdrant_client: AsyncQdrantClient, collection_name: str, settings: ParliamentMCPSettings):
+        self.qdrant_client = qdrant_client
+        self.collection_name = collection_name
+        self.settings = settings
         self.progress: Progress | None = None
+        self.openai_client = get_openai_client(self.settings)
+
+        self.chunker = RecursiveChunker()
 
     async def get_total_results(self, url: str, params: dict, count_key: str = "TotalResultCount") -> int:
         """Get total results count from API endpoint"""
@@ -145,30 +154,54 @@ class ElasticDataLoader:
             self.progress.refresh()
         self.progress = None
 
-    async def store_in_elastic(self, data: list[ElasticDocument]) -> None:
-        """Bulk store documents in Elasticsearch with retries."""
-        try:
-            actions = [
-                {
-                    "_op_type": "index",
-                    "_index": self.index_name,
-                    "_id": item.document_uri,
-                    "_source": item.model_dump(mode="json"),
-                }
-                for item in data
-            ]
+    def _generate_point_id(self, point_id_str: str) -> str:
+        """Generate a consistent UUID from string ID."""
+        # Use SHA-256 hash to create consistent UUID
+        hash_obj = hashlib.sha256(point_id_str.encode())
+        hash_hex = hash_obj.hexdigest()
+        # Use first 32 characters to create UUID
+        return str(uuid.UUID(hash_hex[:32]))
 
-            await async_bulk(
-                self.elastic_client,
-                actions=actions,
-                max_retries=3,
+    async def store_in_qdrant_batch(self, documents: list[QdrantDocument]) -> None:
+        """Store documents in Qdrant as chunked embeddings."""
+        # Convert documents to chunks
+        chunked_documents = list(chain.from_iterable(document.to_chunks(self.chunker) for document in documents))
+
+        if not chunked_documents:
+            logger.debug("No chunks to store")
+            return
+
+        # Generate embeddings for chunks
+        chunk_texts = [chunk["text"] for chunk in chunked_documents]
+        embedded_chunks = await embed_batch(
+            client=self.openai_client,
+            texts=chunk_texts,
+            model=self.settings.AZURE_OPENAI_EMBEDDING_MODEL,
+            dimensions=self.settings.EMBEDDING_DIMENSIONS,
+        )
+
+        # Create points for chunks
+        points = [
+            PointStruct(
+                id=self._generate_point_id(chunk["chunk_id"]),
+                vector=embedding,
+                payload=chunk,
             )
-        except BulkIndexError as e:
-            raise e from e
+            for chunk, embedding in zip(chunked_documents, embedded_chunks, strict=True)
+        ]
+
+        # Upsert the chunks
+        await self.qdrant_client.upsert(
+            collection_name=self.collection_name,
+            points=points,
+            wait=False,
+        )
+
+        logger.debug("Stored %d chunks in collection %s", len(points), self.collection_name)
 
 
-class ElasticHansardLoader(ElasticDataLoader):
-    """Loader for Hansard parliamentary debate contributions."""
+class QdrantHansardLoader(QdrantDataLoader):
+    """Loader for Hansard parliamentary debate contributions using Qdrant."""
 
     def __init__(
         self,
@@ -205,7 +238,7 @@ class ElasticHansardLoader(ElasticDataLoader):
         }
 
         url = f"{HANSARD_BASE_URL}/search/contributions/{contribution_type}.json"
-        total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0})
+        total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0}, "TotalResultCount")
         task = self.progress.add_task(
             f"Loading '{contribution_type}' contributions",
             total=total_results,
@@ -235,10 +268,11 @@ class ElasticHansardLoader(ElasticDataLoader):
                             contribution.DebateSectionExtId,
                         )
 
-                    await self.store_in_elastic(valid_contributions)
+                    await self.store_in_qdrant_batch(valid_contributions)
                     self.progress.update(task, advance=len(contributions.Results))
             except Exception:
                 logger.exception("Failed to process page - %s", query_params)
+                raise
 
         # TaskGroup with one task per page
         async with asyncio.TaskGroup() as tg:
@@ -248,35 +282,29 @@ class ElasticHansardLoader(ElasticDataLoader):
     async def get_debate_parents(
         self, date: str, house: Literal["Commons", "Lords"], debate_ext_id: str
     ) -> list[DebateParent]:
-        """Retrieve parent debate hierarchy for a contribution."""
-
+        """Get debate parent hierarchy for a contribution."""
         try:
-            section_tree_for_date = await load_section_trees(date, house)
+            section_tree_map = await load_section_trees(date, house)
 
-            # use the external id rather than the section id because external ids are more stable
+            # Use the external id rather than the section id because external ids are more stable
             next_id = debate_ext_id
             debate_parents = []
             while next_id is not None:
-                parent = DebateParent.model_validate(section_tree_for_date[next_id])
+                if next_id not in section_tree_map:
+                    break
+                parent = DebateParent.model_validate(section_tree_map[next_id])
                 debate_parents.append(parent)
                 next_id = parent.ParentId
+
         except Exception:
-            logger.exception(
-                "Failed to get debate parents for debate id - %s",
-                debate_ext_id,
-            )
+            logger.exception("Failed to get debate parents for %s", debate_ext_id)
             return []
         else:
             return debate_parents
 
 
-class ElasticParliamentaryQuestionLoader(ElasticDataLoader):
-    """
-    Handles the loading and processing of parliamentary questions from the API.
-
-    This class manages HTTP requests with rate limiting and caching, and handles
-    the fetching of both summarised and full question content when needed.
-    """
+class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
+    """Loader for Parliamentary Questions using Qdrant."""
 
     def __init__(
         self,
@@ -287,48 +315,46 @@ class ElasticParliamentaryQuestionLoader(ElasticDataLoader):
         self.page_size = page_size
         super().__init__(*args, **kwargs)
 
-    async def enrich_question(self, question: ParliamentaryQuestion) -> ParliamentaryQuestion:
-        """
-        Fetch the full version of a question when the summary is truncated.
-
-        Args:
-            question_id: The unique identifier of the question
-
-        Returns:
-            ParliamentaryQuestion: The full question data or original if fetch fails
-
-        Raises:
-            ValueError: If no original question is stored
-        """
-        try:
-            response = await cached_limited_get(
-                f"{PQS_BASE_URL}/writtenquestions/questions/{question.id}",
-                params={"expandMember": "true"},
-            )
-            response.raise_for_status()
-
-            data = response.json()
-            new_question = ParliamentaryQuestion(**data["value"])
-            question.questionText = new_question.questionText
-            question.answerText = new_question.answerText
-        except Exception:
-            logger.exception("Failed to fetch full question - %s", question.id)
-        return question
-
     async def load_questions_for_date_range(
         self,
-        from_date: str = "2020-01-01",
-        to_date: str = "2020-02-10",
+        from_date: str = "2025-01-01",
+        to_date: str = "2025-01-10",
     ) -> None:
-        """
-        Load questions within the specified date range, checking both tabled and answered dates.
-        """
+        """Load Parliamentary Questions for a date range."""
+        with self.progress_context():
+            async with asyncio.TaskGroup() as tg:
+                # Load by both tabled and answered dates
+                tg.create_task(self._load_questions_by_date_type("tabled", from_date, to_date))
+                tg.create_task(self._load_questions_by_date_type("answered", from_date, to_date))
+
+    async def _load_questions_by_date_type(
+        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str
+    ) -> None:
+        """Load questions filtered by specific date type."""
+        seen_ids: set[str] = set()
+
+        base_params = {
+            "expandMember": "true",
+            f"{date_type}WhenFrom": from_date,
+            f"{date_type}WhenTo": to_date,
+        }
+
         url = f"{PQS_BASE_URL}/writtenquestions/questions"
+        total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0}, "totalResults")
 
-        semaphore = asyncio.Semaphore(5)
-        seen_ids = set()
+        task = self.progress.add_task(
+            f"Loading PQs ({date_type} {from_date} - {to_date})",
+            total=total_results,
+            completed=0,
+        )
 
-        async def process_page(query_params: dict, task_id: int):
+        if total_results == 0:
+            self.progress.update(task, completed=total_results)
+            return
+
+        semaphore = asyncio.Semaphore(3)
+
+        async def process_page(query_params: dict):
             """Fetch and process a single page"""
             try:
                 async with semaphore:
@@ -336,78 +362,49 @@ class ElasticParliamentaryQuestionLoader(ElasticDataLoader):
                     response.raise_for_status()
                     page_data = response.json()
 
-                    response = ParliamentaryQuestionsResponse.model_validate(page_data)
-                    valid_questions = []
+                    questions_response = ParliamentaryQuestionsResponse.model_validate(page_data)
 
-                    for question in response.questions:
-                        if question.id in seen_ids:
-                            continue
+                    # Filter out duplicates
+                    new_questions = []
+                    for question in questions_response.questions:
+                        question_id = f"pq_{question.id}"
+                        if question_id not in seen_ids:
+                            seen_ids.add(question_id)
 
-                        seen_ids.add(question.id)
+                            # Enrich truncated questions
+                            if await self._needs_enrichment(question):
+                                enriched_question = await self.enrich_question(question)
+                                new_questions.append(enriched_question)
+                            else:
+                                new_questions.append(question)
 
-                        if question.is_truncated:
-                            enriched_question = await self.enrich_question(question)
-                            valid_questions.append(enriched_question)
-                        else:
-                            valid_questions.append(question)
+                    if new_questions:
+                        await self.store_in_qdrant(new_questions)
 
-                    await self.store_in_elastic(valid_questions)
-                    self.progress.update(task_id, advance=len(response.questions))
+                    self.progress.update(task, advance=len(questions_response.questions))
             except Exception:
-                logger.exception("Failed to process page - %s", query_params)
+                logger.exception("Failed to process PQ page - %s", query_params)
+                raise
 
-        with self.progress_context():
-            tabled_task_id = self.progress.add_task("Loading 'tabled' questions", total=0, completed=0, start=True)
-            answered_task_id = self.progress.add_task("Loading 'answered' questions", total=0, completed=0, start=False)
+        # TaskGroup with one task per page
+        async with asyncio.TaskGroup() as tg:
+            for skip in range(0, total_results, self.page_size):
+                tg.create_task(process_page(base_params | {"take": self.page_size, "skip": skip}))
 
-            async with asyncio.TaskGroup() as tg:
-                questions_tabled_params = {
-                    "tabledWhenFrom": from_date,
-                    "tabledWhenTo": to_date,
-                    "expandMember": "true",
-                    "take": self.page_size,
-                }
-                total_results = await self.get_total_results(url, questions_tabled_params, count_key="totalResults")
-                self.progress.start_task(tabled_task_id)
-                self.progress.update(tabled_task_id, total=total_results)
-                for skip in range(0, total_results, self.page_size):
-                    tg.create_task(process_page(questions_tabled_params | {"skip": skip}, tabled_task_id))
-
-            async with asyncio.TaskGroup() as tg:
-                questions_answered_params = {
-                    "answeredWhenFrom": from_date,
-                    "answeredWhenTo": to_date,
-                    "expandMember": "true",
-                    "take": self.page_size,
-                }
-                total_results = await self.get_total_results(url, questions_answered_params, count_key="totalResults")
-                self.progress.start_task(answered_task_id)
-                self.progress.update(answered_task_id, total=total_results)
-                for skip in range(0, total_results, self.page_size):
-                    tg.create_task(process_page(questions_answered_params | {"skip": skip}, answered_task_id))
-
-
-async def load_data(
-    es_client: AsyncElasticsearch,
-    settings: ParliamentMCPSettings,
-    source: str,
-    from_date: str,
-    to_date: str,
-):
-    """Load data from specified source into Elasticsearch within date range.
-
-    Args:
-        settings: ParliamentMCPSettings instance
-        source: Data source - either "hansard" or "parliamentary-questions"
-        from_date: Start date in YYYY-MM-DD format
-        to_date: End date in YYYY-MM-DD format
-        elastic_client: Optional Elasticsearch client (will create one if not provided)
-    """
-    if source == "hansard":
-        loader = ElasticHansardLoader(elastic_client=es_client, index_name=settings.HANSARD_CONTRIBUTIONS_INDEX)
-        await loader.load_all_contributions(from_date, to_date)
-    elif source == "parliamentary-questions":
-        loader = ElasticParliamentaryQuestionLoader(
-            elastic_client=es_client, index_name=settings.PARLIAMENTARY_QUESTIONS_INDEX
+    async def _needs_enrichment(self, question: ParliamentaryQuestion) -> bool:
+        """Check if question needs content enrichment."""
+        return (question.questionText and question.questionText.endswith("...")) or (
+            question.answerText and question.answerText.endswith("...")
         )
-        await loader.load_questions_for_date_range(from_date, to_date)
+
+    async def enrich_question(self, question: ParliamentaryQuestion) -> ParliamentaryQuestion:
+        """Fetch full question content when truncated."""
+        try:
+            url = f"{PQS_BASE_URL}/writtenquestions/questions/{question.id}"
+            response = await cached_limited_get(url)
+            response.raise_for_status()
+            full_question_data = response.json()
+            return ParliamentaryQuestion.model_validate(full_question_data["value"])
+        except Exception:
+            logger.exception("Failed to enrich question %s", question.id)
+            return question

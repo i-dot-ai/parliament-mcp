@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic.fields import FieldInfo
 
-from parliament_mcp.data_loaders import cached_limited_get
+from parliament_mcp.qdrant_data_loaders import cached_limited_get
 
 logger = logging.getLogger(__name__)
 

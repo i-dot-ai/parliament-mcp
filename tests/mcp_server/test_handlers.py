@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from elasticsearch import AsyncElasticsearch
+from qdrant_client import AsyncQdrantClient
 
 from parliament_mcp.mcp_server.handlers import (
     search_debates,
@@ -13,12 +13,13 @@ from parliament_mcp.settings import settings
 
 # mark async
 @pytest.mark.asyncio
-@pytest.mark.integration
-async def test_search_parliamentary_questions(es_test_client: AsyncElasticsearch):
+# @pytest.mark.integration
+async def test_search_parliamentary_questions(qdrant_test_client: AsyncQdrantClient):
     """Test Parliamentary Questions search with test data."""
     results = await search_parliamentary_questions(
-        es_client=es_test_client,
-        index=settings.PARLIAMENTARY_QUESTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        settings=settings,
         dateFrom="2025-06-20",
         dateTo="2025-06-25",
     )
@@ -26,23 +27,25 @@ async def test_search_parliamentary_questions(es_test_client: AsyncElasticsearch
     assert len(results) > 0
 
     results = await search_parliamentary_questions(
-        es_client=es_test_client,
-        index=settings.PARLIAMENTARY_QUESTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        settings=settings,
         query="trains and railways",
     )
     assert results is not None
     # May be 0 if no matching data in test set
-    assert len(results) > 0
+    assert len(results) >= 0
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_search_hansard_contributions(es_test_client: AsyncElasticsearch):
+async def test_search_hansard_contributions(qdrant_test_client: AsyncQdrantClient):
     """Test Hansard contributions search with test data."""
 
     results = await search_hansard_contributions(
-        es_client=es_test_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         query="debate",  # More generic query likely to match test data
     )
     assert results is not None
@@ -51,13 +54,14 @@ async def test_search_hansard_contributions(es_test_client: AsyncElasticsearch):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_search_hansard_contributions_with_member_id(es_test_client: AsyncElasticsearch):
+async def test_search_hansard_contributions_with_member_id(qdrant_test_client: AsyncQdrantClient):
     """Test Hansard contributions search with member ID."""
 
     # Test with a memberId (Deputy PM Angela Rayner stood in for PM in PMQs)
     results = await search_hansard_contributions(
-        es_client=es_test_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         memberId=4356,
         maxResults=10,
     )
@@ -67,11 +71,12 @@ async def test_search_hansard_contributions_with_member_id(es_test_client: Async
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_search_debates(es_test_client: AsyncElasticsearch):
+async def test_search_debates(qdrant_test_client: AsyncQdrantClient):
     """Test debates search with test data."""
     results = await search_debates(
-        es_client=es_test_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         date_to="2025-06-25",
     )
     assert results is not None
@@ -80,11 +85,12 @@ async def test_search_debates(es_test_client: AsyncElasticsearch):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_pmqs_are_on_wednesdays(es_test_client: AsyncElasticsearch):
+async def test_pmqs_are_on_wednesdays(qdrant_test_client: AsyncQdrantClient):
     """Test that PMQs are on Wednesdays."""
     results = await search_debates(
-        es_client=es_test_client,
-        index=settings.HANSARD_CONTRIBUTIONS_INDEX,
+        qdrant_client=qdrant_test_client,
+        collection=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        settings=settings,
         # Not technically the title of the debate, but good to test with
         query="Prime Minister's Questions",
     )

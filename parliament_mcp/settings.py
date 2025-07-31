@@ -27,7 +27,9 @@ def get_environment_or_ssm(env_var_name: str, ssm_path: str | None = None, defau
     if env_value:
         return env_value
 
-    if ssm_path and os.environ.get("AWS_REGION"):
+    # Only use SSM if not in local environment
+    environment = os.environ.get("ENVIRONMENT", "local")
+    if ssm_path and os.environ.get("AWS_REGION") and environment != "local":
         return get_ssm_parameter(ssm_path, os.environ.get("AWS_REGION"))
 
     return default
@@ -59,12 +61,6 @@ class ParliamentMCPSettings(BaseSettings):
         )
 
     @property
-    def AZURE_OPENAI_RESOURCE_NAME(self) -> str:
-        return get_environment_or_ssm(
-            "AZURE_OPENAI_RESOURCE_NAME", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_RESOURCE_NAME"
-        )
-
-    @property
     def AZURE_OPENAI_EMBEDDING_MODEL(self) -> str:
         return get_environment_or_ssm(
             "AZURE_OPENAI_EMBEDDING_MODEL", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL"
@@ -76,33 +72,25 @@ class ParliamentMCPSettings(BaseSettings):
             "AZURE_OPENAI_API_VERSION", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION", "preview"
         )
 
-    # Elasticsearch connection settings
+    # Qdrant connection settings
     @property
-    def ELASTICSEARCH_CLOUD_ID(self) -> str | None:
+    def QDRANT_URL(self) -> str | None:
+        return get_environment_or_ssm("QDRANT_URL", f"/{self._get_project_name()}/env_secrets/QDRANT_URL")
+
+    @property
+    def QDRANT_API_KEY(self) -> str | None:
+        return get_environment_or_ssm("QDRANT_API_KEY", f"/{self._get_project_name()}/env_secrets/QDRANT_API_KEY")
+
+    @property
+    def QDRANT_HOST(self) -> str:
         return get_environment_or_ssm(
-            "ELASTICSEARCH_CLOUD_ID", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_CLOUD_ID"
+            "QDRANT_HOST", f"/{self._get_project_name()}/env_secrets/QDRANT_HOST", "localhost"
         )
 
     @property
-    def ELASTICSEARCH_API_KEY(self) -> str | None:
-        return get_environment_or_ssm(
-            "ELASTICSEARCH_API_KEY", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_API_KEY"
-        )
-
-    @property
-    def ELASTICSEARCH_HOST(self) -> str | None:
-        return get_environment_or_ssm(
-            "ELASTICSEARCH_HOST", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_HOST", "localhost"
-        )
-
-    @property
-    def ELASTICSEARCH_PORT(self) -> int:
-        port_str = get_environment_or_ssm(
-            "ELASTICSEARCH_PORT", f"/{self._get_project_name()}/env_secrets/ELASTICSEARCH_PORT", "9200"
-        )
-        return int(port_str) if port_str.isdigit() else 9200
-
-    ELASTICSEARCH_SCHEME: str = "http"
+    def QDRANT_PORT(self) -> int:
+        port_str = get_environment_or_ssm("QDRANT_PORT", f"/{self._get_project_name()}/env_secrets/QDRANT_PORT", "6333")
+        return int(port_str) if port_str.isdigit() else 6333
 
     AUTH_PROVIDER_PUBLIC_KEY: str | None = None
     DISABLE_AUTH_SIGNATURE_VERIFICATION: bool = ENVIRONMENT == "local"
@@ -111,11 +99,9 @@ class ParliamentMCPSettings(BaseSettings):
         """Get the project name from environment or use default."""
         return os.environ.get("PROJECT_NAME", "i-dot-ai-dev-parliament-mcp")
 
-    # Set to 0 for single-node cluster
-    ELASTICSEARCH_INDEX_PATTERN: str = "parliament_mcp_*"
-    ELASTICSEARCH_NUMBER_OF_REPLICAS: int = 0
+    # Qdrant collection names
+    QDRANT_COLLECTION_PREFIX: str = "parliament_mcp_"
 
-    EMBEDDING_INFERENCE_ENDPOINT_NAME: str = "openai-embedding-inference"
     EMBEDDING_DIMENSIONS: int = 1024
 
     # Chunking settings
@@ -124,8 +110,8 @@ class ParliamentMCPSettings(BaseSettings):
     SENTENCE_OVERLAP: int = 1
     CHUNK_STRATEGY: str = "sentence"
 
-    PARLIAMENTARY_QUESTIONS_INDEX: str = "parliament_mcp_parliamentary_questions"
-    HANSARD_CONTRIBUTIONS_INDEX: str = "parliament_mcp_hansard_contributions"
+    PARLIAMENTARY_QUESTIONS_COLLECTION: str = "parliament_mcp_parliamentary_questions"
+    HANSARD_CONTRIBUTIONS_COLLECTION: str = "parliament_mcp_hansard_contributions"
 
     # MCP settings
     MCP_HOST: str = "0.0.0.0"  # nosec B104 - Binding to all interfaces is intentional for containerized deployment
