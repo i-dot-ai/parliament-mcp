@@ -8,8 +8,12 @@ import dotenv
 from qdrant_client import AsyncQdrantClient
 from rich.logging import RichHandler
 
-from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
+from parliament_mcp.qdrant_data_loaders import (
+    QdrantHansardLoader,
+    QdrantParliamentaryQuestionLoader,
+)
 from parliament_mcp.qdrant_helpers import (
+    create_collection_indicies,
     delete_collection_if_exists,
     get_async_qdrant_client,
     initialize_qdrant_collections,
@@ -29,7 +33,11 @@ def configure_logging(level=logging.INFO, use_colors=True):
         use_colors: Whether to use colored output (requires rich)
     """
     if use_colors:
-        logging.basicConfig(level=level, format="%(message)s", handlers=[RichHandler(rich_tracebacks=True)])
+        logging.basicConfig(
+            level=level,
+            format="%(message)s",
+            handlers=[RichHandler(rich_tracebacks=True)],
+        )
     else:
         logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -45,13 +53,17 @@ async def init_qdrant(qdrant_client: AsyncQdrantClient, settings: ParliamentMCPS
     """Initialises Qdrant collections."""
     logger.info("Initialising Qdrant collections.")
     await initialize_qdrant_collections(qdrant_client, settings)
+    await create_collection_indicies(qdrant_client, settings)
 
 
 def create_parser():
     """Create and return the argument parser."""
     parser = argparse.ArgumentParser(description="Parliament MCP CLI tool.")
     parser.add_argument(
-        "--log-level", "--ll", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="WARNING"
+        "--log-level",
+        "--ll",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="WARNING",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -83,7 +95,10 @@ def create_parser():
     # Sub-parser for the 'serve' command
     serve_parser = subparsers.add_parser("serve", help="Run the MCP server.")
     serve_parser.add_argument(
-        "--no-reload", dest="reload", action="store_false", help="Disable auto-reload in development."
+        "--no-reload",
+        dest="reload",
+        action="store_false",
+        help="Disable auto-reload in development.",
     )
     serve_parser.set_defaults(reload=True)
 

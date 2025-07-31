@@ -1,5 +1,7 @@
 """Test configuration and fixtures for Parliament MCP tests."""
 
+import asyncio
+import contextlib
 import logging
 import os
 import time
@@ -12,9 +14,13 @@ import dotenv
 import httpx
 import pytest
 import pytest_asyncio
+import uvicorn
+from agents import Agent, OpenAIResponsesModel
+from agents.mcp import MCPServerStreamableHttp, MCPServerStreamableHttpParams
 from qdrant_client import AsyncQdrantClient
 from testcontainers.qdrant import QdrantContainer
 
+from parliament_mcp.embedding_helpers import get_openai_client
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
 from parliament_mcp.qdrant_helpers import collection_exists, initialize_qdrant_collections
 from parliament_mcp.settings import settings
@@ -97,7 +103,7 @@ def qdrant_container_url() -> Generator[str]:
         yield container_url
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def qdrant_test_client(
     qdrant_container_url: str,
 ) -> AsyncGenerator[AsyncQdrantClient]:
@@ -153,5 +159,55 @@ async def qdrant_in_memory_test_client() -> AsyncGenerator[AsyncQdrantClient]:
     """Qdrant client with test data loaded (only loads once per session)."""
     qdrant_client = AsyncQdrantClient(":memory:")
     await initialize_qdrant_collections(qdrant_client, settings)
+    yield qdrant_client
+    await qdrant_client.close()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def test_mcp_server(qdrant_test_client: AsyncQdrantClient) -> AsyncGenerator[MCPServerStreamableHttp]:
+    """Start the MCP server backed by the test Elasticsearch client."""
+    config = uvicorn.Config("parliament_mcp.mcp_server.main:create_app", host="127.0.0.1", port=8081, log_level="info")
+    server = uvicorn.Server(config=config)
+
+    # Create a task for the server
+    server_task = asyncio.create_task(server.serve())
+
+    try:
+        # Wait for server to be ready
+        logger.info("Waiting for server to start")
+        await asyncio.sleep(1)
+
+        async with MCPServerStreamableHttp(
+            params=MCPServerStreamableHttpParams(
+                url="http://127.0.0.1:8081/mcp",
+            )
+        ) as mcp_client:
+            yield mcp_client
+    finally:
+        server.should_exit = True
+        with contextlib.suppress(asyncio.CancelledError):
+            await server_task
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_mcp_agent(test_mcp_server: MCPServerStreamableHttp):
+    """Agent fixture that uses test settings and running MCP server."""
+    client = get_openai_client(settings)
+    agent = Agent(
+        name="Parliament research assistant",
+        model=OpenAIResponsesModel(openai_client=client, model="gpt-4o-mini"),
+        mcp_servers=[test_mcp_server],
+    )
+    yield agent
+
+
+@pytest_asyncio.fixture(scope="session")
+async def qdrant_cloud_test_client() -> AsyncGenerator[AsyncQdrantClient]:
+    """Qdrant client with test data loaded (only loads once per session)."""
+    qdrant_client = AsyncQdrantClient(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+        timeout=30.0,
+    )
     yield qdrant_client
     await qdrant_client.close()

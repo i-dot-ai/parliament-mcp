@@ -16,8 +16,9 @@ import httpx
 from aiolimiter import AsyncLimiter
 from async_lru import alru_cache
 from chonkie import RecursiveChunker
+from fastembed import SparseTextEmbedding
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import PointStruct
+from qdrant_client.models import PointStruct, SparseVector
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -111,7 +112,12 @@ async def load_section_trees(date: str, house: Literal["Commons", "Lords"]) -> d
 class QdrantDataLoader:
     """Base class for loading data into Qdrant with progress tracking."""
 
-    def __init__(self, qdrant_client: AsyncQdrantClient, collection_name: str, settings: ParliamentMCPSettings):
+    def __init__(
+        self,
+        qdrant_client: AsyncQdrantClient,
+        collection_name: str,
+        settings: ParliamentMCPSettings,
+    ):
         self.qdrant_client = qdrant_client
         self.collection_name = collection_name
         self.settings = settings
@@ -119,6 +125,7 @@ class QdrantDataLoader:
         self.openai_client = get_openai_client(self.settings)
 
         self.chunker = RecursiveChunker()
+        self.sparse_text_embedding = SparseTextEmbedding(model_name="Qdrant/bm25")
 
     async def get_total_results(self, url: str, params: dict, count_key: str = "TotalResultCount") -> int:
         """Get total results count from API endpoint"""
@@ -180,14 +187,24 @@ class QdrantDataLoader:
             dimensions=self.settings.EMBEDDING_DIMENSIONS,
         )
 
+        sparse_embeddings = list(self.sparse_text_embedding.embed(chunk_texts))
+
         # Create points for chunks
         points = [
             PointStruct(
                 id=self._generate_point_id(chunk["chunk_id"]),
-                vector=embedding,
+                vector={
+                    "text_sparse": SparseVector(
+                        indices=sparse_embedding.indices,
+                        values=sparse_embedding.values,
+                    ),
+                    "text_dense": dense_embedding,
+                },
                 payload=chunk,
             )
-            for chunk, embedding in zip(chunked_documents, embedded_chunks, strict=True)
+            for chunk, dense_embedding, sparse_embedding in zip(
+                chunked_documents, embedded_chunks, sparse_embeddings, strict=True
+            )
         ]
 
         # Upsert the chunks
@@ -321,17 +338,25 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         to_date: str = "2025-01-10",
     ) -> None:
         """Load Parliamentary Questions for a date range."""
+        # Shared seen_ids to avoid reprocessing questions that appear in both date ranges
+        seen_ids: set[str] = set()
         with self.progress_context():
-            async with asyncio.TaskGroup() as tg:
-                # Load by both tabled and answered dates
-                tg.create_task(self._load_questions_by_date_type("tabled", from_date, to_date))
-                tg.create_task(self._load_questions_by_date_type("answered", from_date, to_date))
+            tabled_task_id = self.progress.add_task("Loading 'tabled' questions", total=0, completed=0, start=False)
+            answered_task_id = self.progress.add_task("Loading 'answered' questions", total=0, completed=0, start=False)
+
+            # Load sequentially to benefit from seen_ids deduplication
+            await self._load_questions_by_date_type("tabled", from_date, to_date, seen_ids, task_id=tabled_task_id)
+            await self._load_questions_by_date_type("answered", from_date, to_date, seen_ids, task_id=answered_task_id)
 
     async def _load_questions_by_date_type(
-        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str
+        self,
+        date_type: Literal["tabled", "answered"],
+        from_date: str,
+        to_date: str,
+        seen_ids: set[str],
+        task_id: int,
     ) -> None:
         """Load questions filtered by specific date type."""
-        seen_ids: set[str] = set()
 
         base_params = {
             "expandMember": "true",
@@ -342,15 +367,8 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         url = f"{PQS_BASE_URL}/writtenquestions/questions"
         total_results = await self.get_total_results(url, base_params | {"take": 1, "skip": 0}, "totalResults")
 
-        task = self.progress.add_task(
-            f"Loading PQs ({date_type} {from_date} - {to_date})",
-            total=total_results,
-            completed=0,
-        )
-
-        if total_results == 0:
-            self.progress.update(task, completed=total_results)
-            return
+        self.progress.start_task(task_id)
+        self.progress.update(task_id, total=total_results, completed=0)
 
         semaphore = asyncio.Semaphore(3)
 
@@ -379,9 +397,9 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
                                 new_questions.append(question)
 
                     if new_questions:
-                        await self.store_in_qdrant(new_questions)
+                        await self.store_in_qdrant_batch(new_questions)
 
-                    self.progress.update(task, advance=len(questions_response.questions))
+                    self.progress.update(task_id, advance=len(questions_response.questions))
             except Exception:
                 logger.exception("Failed to process PQ page - %s", query_params)
                 raise

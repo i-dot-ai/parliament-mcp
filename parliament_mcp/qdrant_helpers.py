@@ -3,8 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client import AsyncQdrantClient, models
 
 from parliament_mcp.settings import ParliamentMCPSettings
 
@@ -12,29 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
-async def get_async_qdrant_client(settings: ParliamentMCPSettings) -> AsyncGenerator[AsyncQdrantClient]:
+async def get_async_qdrant_client(
+    settings: ParliamentMCPSettings,
+) -> AsyncGenerator[AsyncQdrantClient]:
     """Gets an async Qdrant client from environment variables.
 
     Supports both cloud (via API key) and local connections.
     """
-    if settings.QDRANT_API_KEY and settings.QDRANT_URL:
-        logger.info("Connecting to Qdrant Cloud at %s", settings.QDRANT_URL)
-        client = AsyncQdrantClient(
-            url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY,
-            timeout=30,
-        )
-    else:
-        logger.info(
-            "Connecting to Qdrant at %s:%s",
-            settings.QDRANT_HOST,
-            settings.QDRANT_PORT,
-        )
-        client = AsyncQdrantClient(
-            host=settings.QDRANT_HOST,
-            port=settings.QDRANT_PORT,
-            timeout=30,
-        )
+    logger.info("Connecting to Qdrant at %s", settings.QDRANT_URL)
+    client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY, timeout=30)
 
     try:
         yield client
@@ -44,19 +29,14 @@ async def get_async_qdrant_client(settings: ParliamentMCPSettings) -> AsyncGener
 
 async def collection_exists(client: AsyncQdrantClient, collection_name: str) -> bool:
     """Checks if a collection exists in Qdrant."""
-    try:
-        await client.get_collection(collection_name)
-    except Exception:  # noqa: BLE001
-        return False
-    else:
-        return True
+    return await client.collection_exists(collection_name)
 
 
 async def create_collection_if_none(
     client: AsyncQdrantClient,
     collection_name: str,
     vector_size: int,
-    distance: Distance = Distance.COSINE,
+    distance: models.Distance = models.Distance.DOT,
 ) -> None:
     """Create Qdrant collection if it doesn't exist."""
     logger.info("Creating collection - %s", collection_name)
@@ -64,7 +44,17 @@ async def create_collection_if_none(
     if not await collection_exists(client, collection_name):
         await client.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(size=vector_size, distance=distance),
+            vectors_config={
+                "text_dense": models.VectorParams(size=vector_size, distance=distance, on_disk=True),
+            },
+            sparse_vectors_config={
+                "text_sparse": models.SparseVectorParams(
+                    index=models.SparseIndexParams(
+                        on_disk=True,
+                    ),
+                    modifier=models.Modifier.IDF,
+                )
+            },
         )
         logger.info("Created collection - %s", collection_name)
     else:
@@ -83,7 +73,7 @@ async def delete_collection_if_exists(client: AsyncQdrantClient, collection_name
 async def upsert_points(
     client: AsyncQdrantClient,
     collection_name: str,
-    points: list[PointStruct],
+    points: list[models.PointStruct],
     batch_size: int = 100,
 ) -> None:
     """Upsert points to Qdrant in batches."""
@@ -172,3 +162,91 @@ async def initialize_qdrant_collections(
     )
 
     logger.info("Qdrant initialization complete.")
+
+
+async def create_collection_indicies(client: AsyncQdrantClient, settings: ParliamentMCPSettings) -> None:
+    """Create indicies for Qdrant collections."""
+    logger.info("Creating indicies for Qdrant collections")
+
+    # Parliamentary Questions
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="dateTabled",
+        field_type=models.DatetimeIndexParams(
+            type=models.DatetimeIndexType.DATETIME,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="dateAnswered",
+        field_type=models.DatetimeIndexParams(
+            type=models.DatetimeIndexType.DATETIME,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="askingMemberId",
+        field_type=models.IntegerIndexParams(
+            type=models.IntegerIndexType.INTEGER,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="house",
+        field_type=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    # Hansard Contributions
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="SittingDate",
+        field_type=models.DatetimeIndexParams(
+            type=models.DatetimeIndexType.DATETIME,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="DebateSectionExtId",
+        field_type=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="MemberId",
+        field_type=models.IntegerIndexParams(
+            type=models.IntegerIndexType.INTEGER,
+            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="House",
+        field_type=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
+            on_disk=True,
+        ),
+        wait=False,
+    )

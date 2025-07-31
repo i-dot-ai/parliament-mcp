@@ -51,25 +51,30 @@ class ParliamentMCPSettings(BaseSettings):
     @property
     def AZURE_OPENAI_API_KEY(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_API_KEY", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_KEY"
+            "AZURE_OPENAI_API_KEY",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_KEY",
         )
 
     @property
     def AZURE_OPENAI_ENDPOINT(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_ENDPOINT", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_ENDPOINT"
+            "AZURE_OPENAI_ENDPOINT",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_ENDPOINT",
         )
 
     @property
     def AZURE_OPENAI_EMBEDDING_MODEL(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_EMBEDDING_MODEL", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL"
+            "AZURE_OPENAI_EMBEDDING_MODEL",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL",
         )
 
     @property
     def AZURE_OPENAI_API_VERSION(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_API_VERSION", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION", "preview"
+            "AZURE_OPENAI_API_VERSION",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION",
+            "preview",
         )
 
     # Qdrant connection settings
@@ -80,17 +85,6 @@ class ParliamentMCPSettings(BaseSettings):
     @property
     def QDRANT_API_KEY(self) -> str | None:
         return get_environment_or_ssm("QDRANT_API_KEY", f"/{self._get_project_name()}/env_secrets/QDRANT_API_KEY")
-
-    @property
-    def QDRANT_HOST(self) -> str:
-        return get_environment_or_ssm(
-            "QDRANT_HOST", f"/{self._get_project_name()}/env_secrets/QDRANT_HOST", "localhost"
-        )
-
-    @property
-    def QDRANT_PORT(self) -> int:
-        port_str = get_environment_or_ssm("QDRANT_PORT", f"/{self._get_project_name()}/env_secrets/QDRANT_PORT", "6333")
-        return int(port_str) if port_str.isdigit() else 6333
 
     AUTH_PROVIDER_PUBLIC_KEY: str | None = None
     DISABLE_AUTH_SIGNATURE_VERIFICATION: bool = ENVIRONMENT == "local"
@@ -103,6 +97,9 @@ class ParliamentMCPSettings(BaseSettings):
     QDRANT_COLLECTION_PREFIX: str = "parliament_mcp_"
 
     EMBEDDING_DIMENSIONS: int = 1024
+
+    # Sparse text embedding model
+    SPARSE_TEXT_EMBEDDING_MODEL: str = "Qdrant/bm25"
 
     # Chunking settings
     # See https://www.elastic.co/search-labs/blog/elasticsearch-chunking-inference-api-endpoints

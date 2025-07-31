@@ -67,7 +67,7 @@ Once this is run, you can connect to the MCP server using this config
 
 The system supports connecting to Qdrant:
 
-1. **Local/Self-hosted**: Use `QDRANT_HOST` and `QDRANT_PORT` (defaults to localhost:6333)
+1. **Local/Self-hosted**: Use `QDRANT_URL` (defaults to localhost:6333)
 2. **Qdrant Cloud**: Use `QDRANT_URL` and `QDRANT_API_KEY` for cloud deployments
 
 ```bash
