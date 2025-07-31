@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
-async def get_async_qdrant_client(settings: ParliamentMCPSettings) -> AsyncGenerator[AsyncQdrantClient]:
+async def get_async_qdrant_client(
+    settings: ParliamentMCPSettings,
+) -> AsyncGenerator[AsyncQdrantClient]:
     """Gets an async Qdrant client from environment variables.
 
     Supports both cloud (via API key) and local connections.

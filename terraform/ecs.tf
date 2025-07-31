@@ -87,7 +87,11 @@ module "backend-ecs-alarm" {
   ecs_service_name             = module.backend.ecs_service_name
   ecs_cluster_name             = data.terraform_remote_state.platform.outputs.ecs_cluster_name
   sns_topic_arn                = [module.sns_topic.sns_topic_arn]
+
+  period             = 120
+  evaluation_periods = 3
 }
+
 module "backend-alb-alarm" {
   # checkov:skip=CKV_TF_1: We're using semantic versions instead of commit hash
   # source                       = "../../i-dot-ai-core-terraform-modules/modules/observability/alb-alarms"

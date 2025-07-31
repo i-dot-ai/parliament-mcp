@@ -51,25 +51,30 @@ class ParliamentMCPSettings(BaseSettings):
     @property
     def AZURE_OPENAI_API_KEY(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_API_KEY", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_KEY"
+            "AZURE_OPENAI_API_KEY",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_KEY",
         )
 
     @property
     def AZURE_OPENAI_ENDPOINT(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_ENDPOINT", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_ENDPOINT"
+            "AZURE_OPENAI_ENDPOINT",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_ENDPOINT",
         )
 
     @property
     def AZURE_OPENAI_EMBEDDING_MODEL(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_EMBEDDING_MODEL", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL"
+            "AZURE_OPENAI_EMBEDDING_MODEL",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_EMBEDDING_MODEL",
         )
 
     @property
     def AZURE_OPENAI_API_VERSION(self) -> str:
         return get_environment_or_ssm(
-            "AZURE_OPENAI_API_VERSION", f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION", "preview"
+            "AZURE_OPENAI_API_VERSION",
+            f"/{self._get_project_name()}/env_secrets/AZURE_OPENAI_API_VERSION",
+            "preview",
         )
 
     # Qdrant connection settings

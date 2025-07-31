@@ -48,7 +48,8 @@ async def search_constituency(
     constituency_id: int | None = Field(None, description="Get comprehensive constituency details by ID"),
     skip: int = Field(0, description="Number of results to skip (for search)"),
     take: int = Field(
-        5, description="Number of results to take (Max 20, for search). Default 5 (reasonable for most use cases)"
+        5,
+        description="Number of results to take (Max 20, for search). Default 5 (reasonable for most use cases)",
     ),
 ) -> Any:
     """
@@ -199,7 +200,11 @@ async def get_detailed_member_information(
             )
         if include_contact:
             tasks["contact"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/Contact", return_string=False, remove_null_values=True)
+                request_members_api(
+                    f"/api/Members/{member_id}/Contact",
+                    return_string=False,
+                    remove_null_values=True,
+                )
             )
         if include_registered_interests:
             tasks["registered_interests"] = tg.create_task(
@@ -211,7 +216,9 @@ async def get_detailed_member_information(
             member_house = tasks["member"].result()["latestHouseMembership"]["house"]
             tasks["voting"] = tg.create_task(
                 request_members_api(
-                    f"/api/Members/{member_id}/Voting", params={"house": member_house}, return_string=False
+                    f"/api/Members/{member_id}/Voting",
+                    params={"house": member_house},
+                    return_string=False,
                 )
             )
 

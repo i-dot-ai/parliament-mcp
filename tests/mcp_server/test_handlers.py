@@ -48,7 +48,9 @@ async def test_search_hansard_contributions(qdrant_query_handler: QdrantQueryHan
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_search_hansard_contributions_with_member_id(qdrant_query_handler: QdrantQueryHandler):
+async def test_search_hansard_contributions_with_member_id(
+    qdrant_query_handler: QdrantQueryHandler,
+):
     """Test Hansard contributions search with member ID."""
 
     # Test with a memberId (Deputy PM Angela Rayner stood in for PM in PMQs)
@@ -100,7 +102,9 @@ async def test_pmqs_are_on_wednesdays(qdrant_query_handler: QdrantQueryHandler):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_search_hansard_contributions_with_filters(qdrant_query_handler: QdrantQueryHandler):
+async def test_search_hansard_contributions_with_filters(
+    qdrant_query_handler: QdrantQueryHandler,
+):
     """Test Hansard contributions search with knn.
 
     Should find the contribution on NATO from Pat McFadden on 24th June 2025.

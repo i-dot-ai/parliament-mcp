@@ -112,7 +112,12 @@ async def load_section_trees(date: str, house: Literal["Commons", "Lords"]) -> d
 class QdrantDataLoader:
     """Base class for loading data into Qdrant with progress tracking."""
 
-    def __init__(self, qdrant_client: AsyncQdrantClient, collection_name: str, settings: ParliamentMCPSettings):
+    def __init__(
+        self,
+        qdrant_client: AsyncQdrantClient,
+        collection_name: str,
+        settings: ParliamentMCPSettings,
+    ):
         self.qdrant_client = qdrant_client
         self.collection_name = collection_name
         self.settings = settings
@@ -344,7 +349,12 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
             await self._load_questions_by_date_type("answered", from_date, to_date, seen_ids, task_id=answered_task_id)
 
     async def _load_questions_by_date_type(
-        self, date_type: Literal["tabled", "answered"], from_date: str, to_date: str, seen_ids: set[str], task_id: int
+        self,
+        date_type: Literal["tabled", "answered"],
+        from_date: str,
+        to_date: str,
+        seen_ids: set[str],
+        task_id: int,
     ) -> None:
         """Load questions filtered by specific date type."""
 
