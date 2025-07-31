@@ -29,12 +29,7 @@ async def get_async_qdrant_client(
 
 async def collection_exists(client: AsyncQdrantClient, collection_name: str) -> bool:
     """Checks if a collection exists in Qdrant."""
-    try:
-        await client.get_collection(collection_name)
-    except Exception:  # noqa: BLE001
-        return False
-    else:
-        return True
+    return await client.collection_exists(collection_name)
 
 
 async def create_collection_if_none(

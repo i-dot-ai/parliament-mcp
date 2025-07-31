@@ -74,6 +74,7 @@ dev = [
 transfer-from-es = [
     "bloom-filter>=1.3.3",
     "click>=8.2.1",
+    "elasticsearch<9",
 ]
 
 [build-system]
