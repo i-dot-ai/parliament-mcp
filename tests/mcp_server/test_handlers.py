@@ -120,3 +120,18 @@ async def test_search_hansard_contributions_with_filters(
 
     top_contribution_url = "https://hansard.parliament.uk/Commons/2025-06-24/debates/3E222FED-6C44-400C-8ABD-112BDCDAE98B/link#contribution-69057392-95C1-40B9-A415-6B4CCCFEE821"
     assert results[0]["contribution_url"] == top_contribution_url
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_search_debates_with_filters(qdrant_query_handler: QdrantQueryHandler):
+    """Test debates search with specific parameters."""
+    results = await qdrant_query_handler.search_debates(
+        query="G7 and NATO Summits",
+        date_from="2025-06-20",
+        max_results=5,
+    )
+    assert results is not None
+    assert len(results) <= 5  # Should respect max_results parameter
+    # May be 0 if no matching data in test set for this specific query and date
+    assert len(results) > 0

@@ -22,8 +22,8 @@ def build_date_range_filter(
     return FieldCondition(
         key=field,
         range=DatetimeRange(
-            gte=datetime.fromisoformat(date_from).date(),
-            lte=datetime.fromisoformat(date_to).date(),
+            gte=datetime.fromisoformat(date_from).date() if date_from else None,
+            lte=datetime.fromisoformat(date_to).date() if date_to else None,
         ),
     )
 
