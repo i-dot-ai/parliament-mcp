@@ -85,3 +85,13 @@ resource "aws_security_group_rule" "parliament_mcp_ingest_lambda_to_443_egress" 
   ipv6_cidr_blocks  = ["::/0"]
   security_group_id = aws_security_group.parliament_mcp_security_group.id
 }
+
+resource "aws_security_group_rule" "parliament_mcp_ingest_lambda_to_qdrant_egress" {
+  type              = "egress"
+  from_port         = 6333
+  to_port           = 6333
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = aws_security_group.parliament_mcp_security_group.id
+}
