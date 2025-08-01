@@ -9,10 +9,22 @@ from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import ParliamentMCPSettings, settings
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()  # Get root logger for Lambda
 log_level = os.environ.get("LOG_LEVEL", "INFO")
+
+# Detect if running in Lambda
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    # Lambda environment - use simple format for CloudWatch
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", force=True)
+    # Ensure all parliament_mcp loggers use the same level
+    logging.getLogger("parliament_mcp").setLevel(log_level)
+    logger.info("Running in AWS Lambda environment with CloudWatch logging")
+else:
+    # Local environment - use rich handler
+    configure_logging(level=log_level)
+
 logger.setLevel(log_level)
-configure_logging(level=log_level)
+logger.info("Logging configured at %s level", log_level)
 
 
 async def main(settings: ParliamentMCPSettings, from_date_str: str, to_date_str: str) -> None:

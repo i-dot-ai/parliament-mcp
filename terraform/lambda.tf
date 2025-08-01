@@ -22,6 +22,7 @@ module "parliament_mcp_ingest_lambda" {
     APP_NAME = "${local.name}-parliament-mcp-ingest"
     ENVIRONMENT = terraform.workspace
     PROJECT_NAME = local.name
+    LOG_LEVEL = "INFO"
   }
 }
 
