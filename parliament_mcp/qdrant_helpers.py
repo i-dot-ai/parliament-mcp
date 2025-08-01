@@ -18,12 +18,46 @@ async def get_async_qdrant_client(
 
     Supports both cloud (via API key) and local connections.
     """
-    logger.info("Connecting to Qdrant at %s", settings.QDRANT_URL)
-    client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY, timeout=30)
+    # Debug: Log connection parameters
+    logger.info("=== Qdrant Connection Debug Info ===")
+    logger.info("Environment: %s", settings.ENVIRONMENT)
+    logger.info("AWS Region: %s", settings.AWS_REGION)
+    logger.info("Project Name: %s", settings._get_project_name())  # noqa: SLF001
+
+    # Access the properties to trigger SSM fetching if needed
+    qdrant_url = settings.QDRANT_URL
+    qdrant_api_key = settings.QDRANT_API_KEY
+
+    if not qdrant_url:
+        msg = "QDRANT_URL is not configured"
+        logger.error("%s! Check environment variables or SSM parameters.", msg)
+        raise ValueError(msg)
+
+    logger.info("Attempting to connect to Qdrant at: %s", qdrant_url)
+    logger.info("API Key configured: %s", "Yes" if qdrant_api_key else "No")
 
     try:
+        client = AsyncQdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=30)
+
+        # Test the connection by getting cluster info
+        try:
+            # This will fail if connection cannot be established
+            collections = await client.get_collections()
+            logger.info("Successfully connected to Qdrant! Found %d collections", len(collections.collections))
+            for collection in collections.collections[:5]:  # Log first 5 collections
+                logger.debug("  - Collection: %s", collection.name)
+        except Exception:
+            logger.exception(
+                "Failed to verify Qdrant connection. URL: %s, Has API Key: %s", qdrant_url, bool(qdrant_api_key)
+            )
+            raise
+
         yield client
+    except Exception as e:
+        logger.exception("Failed to create Qdrant client. Exception type: %s", type(e).__name__)
+        raise
     finally:
+        logger.debug("Closing Qdrant client connection")
         await client.close()
 
 

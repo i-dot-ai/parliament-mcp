@@ -22,6 +22,7 @@ module "parliament_mcp_ingest_lambda" {
     APP_NAME = "${local.name}-parliament-mcp-ingest"
     ENVIRONMENT = terraform.workspace
     PROJECT_NAME = local.name
+    LOG_LEVEL = "INFO"
   }
 }
 
@@ -79,6 +80,16 @@ resource "aws_security_group_rule" "parliament_mcp_ingest_lambda_to_443_egress" 
   type              = "egress"
   from_port         = 443
   to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = aws_security_group.parliament_mcp_security_group.id
+}
+
+resource "aws_security_group_rule" "parliament_mcp_ingest_lambda_to_qdrant_egress" {
+  type              = "egress"
+  from_port         = 6333
+  to_port           = 6333
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   ipv6_cidr_blocks  = ["::/0"]
