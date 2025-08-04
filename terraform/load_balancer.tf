@@ -9,7 +9,7 @@ module "load_balancer" {
   certificate_arn   = data.terraform_remote_state.universal.outputs.certificate_arn
   web_acl_arn       = module.waf.web_acl_arn
   env               = var.env
-
+  alb_name_override = "${var.env}-parliament-mcp-alb"
 }
 
 module "waf" {
