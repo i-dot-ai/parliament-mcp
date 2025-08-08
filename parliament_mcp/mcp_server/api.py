@@ -269,7 +269,6 @@ async def search_parliamentary_questions(
     dateFrom: str | None = Field(None, description="Start date (YYYY-MM-DD)"),
     dateTo: str | None = Field(None, description="End date (YYYY-MM-DD)"),
     party: str | None = Field(None, description="Party"),
-    member_name: str | None = Field(None, description="Member name"),
     member_id: int | None = Field(None, description="Member ID"),
 ) -> Any:
     """
@@ -291,7 +290,6 @@ async def search_parliamentary_questions(
         dateFrom=dateFrom,
         dateTo=dateTo,
         party=party,
-        member_name=member_name,
         member_id=member_id,
     )
 
@@ -301,9 +299,9 @@ async def search_parliamentary_questions(
     return result
 
 
-@mcp_server.tool("search_debates")
+@mcp_server.tool("search_debate_titles")
 @log_tool_call
-async def search_debates(
+async def search_debate_titles(
     query: str = Field(..., description="Query used to search debate titles"),
     dateFrom: str | None = Field(None, description="Date from (YYYY-MM-DD)"),
     dateTo: str | None = Field(None, description="Date to (YYYY-MM-DD)"),
@@ -338,12 +336,48 @@ async def search_debates(
     """
     ctx = mcp_server.get_context()
     qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
-    result = await qdrant_query_handler.search_debates(
+    result = await qdrant_query_handler.search_debate_titles(
         query=query,
         date_from=dateFrom,
         date_to=dateTo,
         house=house,
         max_results=maxResults,
+    )
+
+    if not result:
+        return "No results found"
+
+    return result
+
+
+@mcp_server.tool("find_relevant_contributors")
+@log_tool_call
+async def find_relevant_contributors(
+    query: str = Field(..., description="Query used to search for relevant contributors"),
+    num_contributors: int = Field(10, description="Number of contributors to return"),
+    num_contributions: int = Field(10, description="Number of contributions to return"),
+    dateFrom: str | None = Field(None, description="Date from (YYYY-MM-DD)"),
+    dateTo: str | None = Field(None, description="Date to (YYYY-MM-DD)"),
+    house: Literal["Commons", "Lords"] | None = Field(None, description="House (Commons|Lords)"),
+) -> Any:
+    """
+    Find the most relevant parliamentary contributors and their contributions for a given query.
+
+    Returns a list of contributor groups, each containing the member's contributions.
+
+    Common use cases:
+    - Provide a query to search for relevant contributors and their contributions for a specific topic
+    - Provide a query, date range, and house to search for relevant contributors and their contributions for a specific topic in a specific date range and house
+    """
+    ctx = mcp_server.get_context()
+    qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
+    result = await qdrant_query_handler.find_relevant_contributors(
+        query=query,
+        num_contributors=num_contributors,
+        num_contributions=num_contributions,
+        date_from=dateFrom,
+        date_to=dateTo,
+        house=house,
     )
 
     if not result:
