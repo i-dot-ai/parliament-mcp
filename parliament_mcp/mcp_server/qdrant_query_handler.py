@@ -67,7 +67,7 @@ class QdrantQueryHandler:
         embedding = next(self.sparse_text_embedding.embed(query))
         return models.SparseVector(indices=embedding.indices, values=embedding.values)
 
-    async def search_debates(
+    async def search_debate_titles(
         self,
         query: str | None = None,
         date_from: str | None = None,
@@ -76,7 +76,7 @@ class QdrantQueryHandler:
         max_results: int = 100,
     ) -> list[dict]:
         """
-        Search debates using Qdrant vector search with optional filters.
+        Search debate titles with optional filters.
 
         Args:
             query: Text to search for in debate titles (optional if date range is provided)
@@ -102,53 +102,25 @@ class QdrantQueryHandler:
             build_match_filter("House", house),
         ]
 
+        if query:
+            filter_conditions.append(FieldCondition(key="debate_parents[].Title", match=models.MatchText(text=query)))
+
         query_filter = build_filters(filter_conditions)
 
-        if query:
-            # Generate embeddings for search query
-            dense_query_vector = await self.embed_query_dense(query)
-            sparse_query_vector = self.embed_query_sparse(query)
+        query_response = await self.qdrant_client.query_points_groups(
+            collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+            query_filter=query_filter,
+            limit=max_results,
+            with_payload=True,
+            group_by="DebateSectionExtId",
+            group_size=MINIMUM_DEBATE_HITS,
+        )
 
-            # Perform vector search
-            query_response = await self.qdrant_client.query_points_groups(
-                collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-                prefetch=[
-                    models.Prefetch(
-                        query=dense_query_vector,
-                        using="text_dense",
-                        limit=max_results * 2,
-                    ),
-                    models.Prefetch(
-                        query=sparse_query_vector,
-                        using="text_sparse",
-                        limit=max_results * 2,
-                    ),
-                ],
-                query=models.FusionQuery(
-                    fusion=models.Fusion.RRF,
-                ),
-                limit=max_results,
-                query_filter=query_filter,
-                with_payload=True,
-                group_by="DebateSectionExtId",
-                group_size=5,
-            )
-        else:
-            # If no query, use scroll to get results with filters only
-            query_response = await self.qdrant_client.query_points_groups(
-                collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-                query_filter=query_filter,
-                limit=max_results,
-                with_payload=True,
-                group_by="DebateSectionExtId",
-                group_size=5,
-            )
-
-        relevant_debates = []
+        results = []
         for group in query_response.groups:
             first_hit = group.hits[0].payload
             # If there are less than 2 hits, the debate is not relevant
-            if len(group.hits) <= MINIMUM_DEBATE_HITS:
+            if len(group.hits) < MINIMUM_DEBATE_HITS:
                 continue
 
             debate = {
@@ -159,19 +131,9 @@ class QdrantQueryHandler:
                 "debate_parents": first_hit.get("debate_parents", []),
             }
 
-            if query:
-                debate["relevance_score"] = sum(hit.score for hit in group.hits)
-            relevant_debates.append(debate)
+            results.append(debate)
 
-        def debate_sorter(debate: dict) -> float:
-            """
-            Sort debates by relevance score, then by date.
-            """
-            relevance_score = debate.get("relevance_score", 0)
-            debate_date = debate.get("date", "")
-            return (relevance_score, debate_date)
-
-        return sorted(relevant_debates, key=debate_sorter, reverse=True)[:max_results]
+        return results
 
     async def search_hansard_contributions(
         self,
@@ -182,7 +144,7 @@ class QdrantQueryHandler:
         debateId: str | None = None,  # noqa: N803
         house: Literal["Commons", "Lords"] | None = None,
         maxResults: int = 100,  # noqa: N803
-        min_score: float = 0.3,
+        min_score: float = 0,
     ) -> list[dict]:
         """
         Search Hansard contributions using Qdrant vector search.
@@ -195,7 +157,7 @@ class QdrantQueryHandler:
             debateId: Debate ID (optional)
             house: House (Commons|Lords) (optional)
             maxResults: Maximum number of results to return (default 100)
-            min_score: Minimum relevance score (default 0.5)
+            min_score: Minimum relevance score (default 0)
 
         Returns:
             List of Hansard contribution details dictionaries
@@ -231,11 +193,13 @@ class QdrantQueryHandler:
                         query=dense_query_vector,
                         using="text_dense",
                         limit=maxResults,
+                        filter=query_filter,
                     ),
                     models.Prefetch(
                         query=sparse_query_vector,
                         using="text_sparse",
                         limit=maxResults,
+                        filter=query_filter,
                     ),
                 ],
                 query=models.FusionQuery(
@@ -243,7 +207,6 @@ class QdrantQueryHandler:
                 ),
                 limit=maxResults,
                 score_threshold=min_score,
-                query_filter=query_filter,
                 with_payload=True,
             )
         else:
@@ -287,15 +250,107 @@ class QdrantQueryHandler:
 
         return results
 
+    async def find_relevant_contributors(
+        self,
+        query: str,
+        num_contributors: int = 10,
+        num_contributions: int = 10,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        house: Literal["Commons", "Lords"] | None = None,
+    ) -> list[dict]:
+        """
+        Find the most relevant parliamentary contributors and their contributions.
+
+        Groups Hansard contributions by member ID and returns the top contributors
+        with their most relevant contributions for the given search query.
+
+        Args:
+            query: Text to search for in contributions
+            num_contributors: Number of top contributors to return (default 10)
+            num_contributions: Number of top contributions per contributor (default 10)
+            date_from: Start date filter in 'YYYY-MM-DD' format (optional)
+            date_to: End date filter in 'YYYY-MM-DD' format (optional)
+            house: Filter by house - "Commons" or "Lords" (optional)
+
+        Returns:
+            List of contributor groups, each containing the member's contributions
+        """
+        # Fail if none of the parameters are provided
+        if not query:
+            msg = "A query must be provided"
+            raise ValueError(msg)
+
+        # Build filters
+        query_filter = build_filters(
+            [
+                build_match_filter("House", house),
+                build_date_range_filter(date_from, date_to),
+            ]
+        )
+
+        # Generate embedding for search query
+        dense_query_vector = await self.embed_query_dense(query)
+        sparse_query_vector = self.embed_query_sparse(query)
+
+        # Perform vector search
+        query_response = await self.qdrant_client.query_points_groups(
+            collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+            prefetch=[
+                models.Prefetch(
+                    query=dense_query_vector,
+                    using="text_dense",
+                    filter=query_filter,
+                ),
+                models.Prefetch(
+                    query=sparse_query_vector,
+                    using="text_sparse",
+                    filter=query_filter,
+                ),
+            ],
+            query=models.FusionQuery(
+                fusion=models.Fusion.RRF,
+            ),
+            limit=num_contributors,
+            score_threshold=0,
+            with_payload=True,
+            group_by="MemberId",
+            group_size=num_contributions,
+        )
+
+        results = []
+        for group in query_response.groups:
+            group_results = []
+            for hit in group.hits:
+                payload = hit.payload
+                group_results.append(
+                    {
+                        "text": payload.get("text", ""),
+                        "date": payload.get("SittingDate"),
+                        "house": payload.get("House"),
+                        "member_id": payload.get("MemberId"),
+                        "member_name": payload.get("MemberName"),
+                        "relevance_score": hit.score if hasattr(hit, "score") else 1.0,
+                        "debate_title": payload.get("DebateSection", ""),
+                        "debate_url": payload.get("debate_url", ""),
+                        "contribution_url": payload.get("contribution_url", ""),
+                        "order_in_debate": payload.get("OrderInDebateSection"),
+                        "debate_parents": payload.get("debate_parents", []),
+                    }
+                )
+
+            results.append(group_results)
+
+        return results
+
     async def search_parliamentary_questions(
         self,
         query: str | None = None,
         dateFrom: str | None = None,  # noqa: N803
         dateTo: str | None = None,  # noqa: N803
         party: str | None = None,
-        member_name: str | None = None,
         member_id: int | None = None,
-        min_score: float = 0.3,
+        min_score: float = 0,
         max_results: int = 100,
     ) -> list[dict]:
         """
@@ -306,16 +361,14 @@ class QdrantQueryHandler:
             dateFrom: Start date in format 'YYYY-MM-DD' (optional)
             dateTo: End date in format 'YYYY-MM-DD' (optional)
             party: Filter by party (optional)
-            member_name: Filter by member name (optional)
             member_id: Filter by member id (optional)
-            min_score: Minimum relevance score (default 0.5)
+            min_score: Minimum relevance score (default 0)
             max_results: Maximum number of results to return (default 100)
         """
         # Build filters
         filter_conditions = [
             build_date_range_filter(dateFrom, dateTo, "dateTabled"),
             build_match_filter("askingMember.party", party),
-            build_match_filter("askingMember.name", member_name),
             build_match_filter("askingMember.id", member_id),
         ]
 
@@ -334,11 +387,13 @@ class QdrantQueryHandler:
                         query=dense_query_vector,
                         using="text_dense",
                         limit=max_results,
+                        filter=query_filter,
                     ),
                     models.Prefetch(
                         query=sparse_query_vector,
                         using="text_sparse",
                         limit=max_results,
+                        filter=query_filter,
                     ),
                 ],
                 query=models.FusionQuery(
@@ -346,7 +401,6 @@ class QdrantQueryHandler:
                 ),
                 limit=max_results,
                 score_threshold=min_score,
-                query_filter=query_filter,
                 with_payload=True,
             )
         else:

@@ -45,16 +45,18 @@ async def create_collection_if_none(
         await client.create_collection(
             collection_name=collection_name,
             vectors_config={
-                "text_dense": models.VectorParams(size=vector_size, distance=distance, on_disk=True),
+                "text_dense": models.VectorParams(
+                    size=vector_size,
+                    distance=distance,
+                ),
             },
             sparse_vectors_config={
-                "text_sparse": models.SparseVectorParams(
-                    index=models.SparseIndexParams(
-                        on_disk=True,
-                    ),
-                    modifier=models.Modifier.IDF,
-                )
+                "text_sparse": {
+                    "index": models.SparseIndexParams(),
+                    "modifier": models.Modifier.IDF,
+                },
             },
+            quantization_config=models.ScalarQuantizationConfig(type="int8", always_ram=True),
         )
         logger.info("Created collection - %s", collection_name)
     else:
@@ -172,9 +174,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
         field_name="dateTabled",
-        field_type=models.DatetimeIndexParams(
+        field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
-            on_disk=True,
         ),
         wait=False,
     )
@@ -182,19 +183,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
         field_name="dateAnswered",
-        field_type=models.DatetimeIndexParams(
+        field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
-            on_disk=True,
-        ),
-        wait=False,
-    )
-
-    await client.create_payload_index(
-        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
-        field_name="askingMemberId",
-        field_type=models.IntegerIndexParams(
-            type=models.IntegerIndexType.INTEGER,
-            on_disk=True,
         ),
         wait=False,
     )
@@ -202,9 +192,35 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
         field_name="house",
-        field_type=models.KeywordIndexParams(
+        field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
-            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="askingMember.id",
+        field_schema=models.IntegerIndexParams(
+            type=models.IntegerIndexType.INTEGER,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="askingMember.party",
+        field_schema=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="answeringBodyId",
+        field_schema=models.IntegerIndexParams(
+            type=models.IntegerIndexType.INTEGER,
         ),
         wait=False,
     )
@@ -214,9 +230,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
         field_name="SittingDate",
-        field_type=models.DatetimeIndexParams(
+        field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
-            on_disk=True,
         ),
         wait=False,
     )
@@ -224,9 +239,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
         field_name="DebateSectionExtId",
-        field_type=models.KeywordIndexParams(
+        field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
-            on_disk=True,
         ),
         wait=False,
     )
@@ -234,9 +248,16 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
         field_name="MemberId",
-        field_type=models.IntegerIndexParams(
+        field_schema=models.IntegerIndexParams(
             type=models.IntegerIndexType.INTEGER,
-            on_disk=True,
+        ),
+        wait=False,
+    )
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="MemberId",
+        field_schema=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
         ),
         wait=False,
     )
@@ -244,9 +265,23 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
     await client.create_payload_index(
         collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
         field_name="House",
-        field_type=models.KeywordIndexParams(
+        field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
-            on_disk=True,
+        ),
+        wait=False,
+    )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="debate_parents[].Title",
+        field_schema=models.TextIndexParams(
+            type="text",
+            tokenizer=models.TokenizerType.WORD,
+            min_token_len=2,
+            max_token_len=10,
+            lowercase=True,
+            phrase_matching=True,
+            stopwords="english",
         ),
         wait=False,
     )
