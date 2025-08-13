@@ -131,6 +131,8 @@ IMAGE=$(ECR_REPO_URL):$(IMAGE_TAG)
 
 DOCKER_BUILDER_CONTAINER=$(APP_NAME)
 cache ?= ./.build-cache
+APP_CACHE_DIR = $(cache)/$(APP_NAME)/$(service)
+
 
 docker_login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_URL)
@@ -138,12 +140,12 @@ docker_login:
 docker_build: ## Build the docker container for the specified service when running in CI/CD
 	@if [ "$(service)" = "lambda" ]; then \
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
-		--cache-to type=local,dest=$(cache) \
-		--cache-from type=local,src=$(cache) -f Dockerfile.lambda .; \
+		--cache-to type=local,dest=$(APP_CACHE_DIR) \
+		--cache-from type=local,src=$(APP_CACHE_DIR) -f Dockerfile.lambda .; \
 	elif [ "$(service)" = "mcp_server" ]; then \
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
-		--cache-to type=local,dest=$(cache) \
-		--cache-from type=local,src=$(cache) -f Dockerfile.mcp-server .; \
+		--cache-to type=local,dest=$(APP_CACHE_DIR) \
+		--cache-from type=local,src=$(APP_CACHE_DIR) -f Dockerfile.mcp-server .; \
 	fi
 
 docker_build_local: ## Build the docker container for the specified service locally
