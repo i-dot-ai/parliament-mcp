@@ -250,14 +250,8 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_name="MemberId",
         field_schema=models.IntegerIndexParams(
             type=models.IntegerIndexType.INTEGER,
-        ),
-        wait=False,
-    )
-    await client.create_payload_index(
-        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-        field_name="MemberId",
-        field_schema=models.KeywordIndexParams(
-            type=models.KeywordIndexType.KEYWORD,
+            lookup=True,
+            range=True,
         ),
         wait=False,
     )
