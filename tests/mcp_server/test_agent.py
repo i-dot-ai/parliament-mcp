@@ -59,3 +59,23 @@ async def test_we_can_find_relevant_contributions(test_mcp_agent: Agent):
 
     contribution_url = "https://hansard.parliament.uk/Commons/2025-06-24/debates/3E222FED-6C44-400C-8ABD-112BDCDAE98B/link#contribution-69057392-95C1-40B9-A415-6B4CCCFEE821"
     assert contribution_url in result.final_output, "Contribution URL not found in the final output"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_find_junior_ministers(test_mcp_agent: Agent):
+    """
+    Test that the agent can use the MCP server to search the Members API.
+    """
+    result: RunResult = await Runner.run(
+        test_mcp_agent,
+        input="""
+        Find the junior ministers for the Department of Health and Social Care.
+        Provide the name of the junior ministers.""",
+    )
+    tool_calls: list[RunItem] = list(filter(lambda item: item.type == "tool_call_item", result.new_items))
+    assert any(tool_call.raw_item.name == "list_ministerial_roles" for tool_call in tool_calls), (
+        "No list_ministerial_roles tool call found"
+    )
+
+    assert "junior ministers" in result.final_output.lower(), "`junior ministers` not found in the final output"

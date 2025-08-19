@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -13,7 +14,7 @@ from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
-from .utils import log_tool_call, request_members_api, sanitize_params
+from .utils import clean_posts_list, log_tool_call, request_members_api, sanitize_params
 
 logger = logging.getLogger(__name__)
 
@@ -240,18 +241,61 @@ async def get_state_of_the_parties(
     return await request_members_api(f"/api/Parties/StateOfTheParties/{house}/{forDate}")
 
 
-@mcp_server.tool("get_government_posts")
+@mcp_server.tool("list_ministerial_roles")
 @log_tool_call
-async def get_government_posts() -> Any:
-    """Get government posts. Exhaustive list of all government posts, and their current holders."""
-    return await request_members_api("/api/Posts/GovernmentPosts")
+async def list_ministerial_roles(
+    post_type: Literal["GovernmentPosts", "OppositionPosts"] = "GovernmentPosts", include_all_minsiters=True
+) -> Any:
+    """List ministerial roles. Exhaustive list of all government posts, and their current holders.
 
+    If include_all_minsiters is True, then the list will include ministers such as Ministers of State and Parliamentary Under-Secretaries of State.
+    If include_all_minsiters is False, then the list will only include the Cabinet Ministers.
 
-@mcp_server.tool("get_opposition_posts")
-@log_tool_call
-async def get_opposition_posts() -> Any:
-    """Get opposition posts. Exhaustive list of all opposition posts, and their current holders."""
-    return await request_members_api("/api/Posts/OppositionPosts")
+    Args:
+        post_type: The type of post to list.
+        include_all_minsiters: Whether to include Ministers of State and Parliamentary Under-Secretaries of State.
+    """
+
+    party_info = None
+
+    if include_all_minsiters:
+        # Junior ministers are included when querying by departmentId
+        posts = []
+        departments = await request_members_api("/api/Reference/Departments")
+        departments = json.loads(departments)
+
+        tasks = []
+        async with asyncio.TaskGroup() as tg:
+            for department in departments:
+                tasks.append(
+                    (
+                        tg.create_task(
+                            request_members_api(
+                                f"/api/Posts/{post_type}",
+                                params={"departmentId": department["id"]},
+                                return_string=False,
+                            )
+                        ),
+                        department,
+                    )
+                )
+
+        for task, department in tasks:
+            if department_posts := task.result():
+                party_info = department_posts[0]["postHolders"][0]["member"]["latestParty"]
+                department_posts = clean_posts_list(department_posts)
+                posts.append(
+                    {"department": department["name"], "department_id": department["id"], "posts": department_posts}
+                )
+    else:
+        posts = await request_members_api(f"/api/Posts/{post_type}", return_string=False)
+
+        if posts:
+            party_info = posts[0]["postHolders"][0]["member"]["latestParty"]
+
+        posts = clean_posts_list(posts)
+
+    return json.dumps({"posts": posts, "party_info": party_info})
 
 
 # Reference endpoints
