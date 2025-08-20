@@ -56,7 +56,12 @@ async def create_collection_if_none(
                     "modifier": models.Modifier.IDF,
                 },
             },
-            quantization_config=models.ScalarQuantizationConfig(type="int8", always_ram=True),
+            quantization_config=models.ScalarQuantization(
+                scalar=models.ScalarQuantizationConfig(
+                    type=models.ScalarType.INT8,
+                    always_ram=True,
+                )
+            ),
         )
         logger.info("Created collection - %s", collection_name)
     else:
@@ -218,9 +223,16 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
 
     await client.create_payload_index(
         collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
-        field_name="answeringBodyId",
-        field_schema=models.IntegerIndexParams(
-            type=models.IntegerIndexType.INTEGER,
+        field_name="answeringBodyName",
+        field_schema=models.TextIndexParams(
+            type="text",
+            tokenizer=models.TokenizerType.WORD,
+            min_token_len=2,
+            max_token_len=10,
+            lowercase=True,
+            phrase_matching=False,
+            stopwords="english",
+            stemmer=models.SnowballParams(type=models.Snowball.SNOWBALL, language=models.SnowballLanguage.ENGLISH),
         ),
         wait=False,
     )
@@ -274,8 +286,9 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
             min_token_len=2,
             max_token_len=10,
             lowercase=True,
-            phrase_matching=True,
+            phrase_matching=False,
             stopwords="english",
+            stemmer=models.SnowballParams(type=models.Snowball.SNOWBALL, language=models.SnowballLanguage.ENGLISH),
         ),
         wait=False,
     )

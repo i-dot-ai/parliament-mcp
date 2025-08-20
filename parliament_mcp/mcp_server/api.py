@@ -314,6 +314,10 @@ async def search_parliamentary_questions(
     dateTo: str | None = Field(None, description="End date (YYYY-MM-DD)"),
     party: str | None = Field(None, description="Party"),
     member_id: int | None = Field(None, description="Member ID"),
+    answering_body_name: str | None = Field(
+        None,
+        description="Answering body name (e.g. 'Department for Transport, Cabinet Office, etc.)",
+    ),
 ) -> Any:
     """
     Search Parliamentary Written Questions (sometimes known as PQs)
@@ -326,6 +330,7 @@ async def search_parliamentary_questions(
     - Provide a query, date range, party and member name to search for written questions on a specific topic in a specific date range by a specific member of a specific party
     - Provide a member name to search for all written questions by a specific member for all time
     - Provide a member id to search for all written questions by a specific member for all time
+    - Provide an answering body name to search for all questions answered by a specific body or department such as 'Department for Transport' or 'Cabinet Office'
     """
     ctx = mcp_server.get_context()
     qdrant_query_handler: QdrantQueryHandler = ctx.request_context.lifespan_context["qdrant_query_handler"]
@@ -335,6 +340,7 @@ async def search_parliamentary_questions(
         dateTo=dateTo,
         party=party,
         member_id=member_id,
+        answering_body_name=answering_body_name,
     )
 
     if not result:

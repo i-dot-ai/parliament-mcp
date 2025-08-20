@@ -35,7 +35,7 @@ async def test_interaction_with_members_api(test_mcp_agent: Agent):
     """
     result: RunResult = await Runner.run(test_mcp_agent, input="Who is the current Chancellor")
     tool_calls: list[RunItem] = list(filter(lambda item: item.type == "tool_call_item", result.new_items))
-    assert any(tool_call.raw_item.name == "get_government_posts" for tool_call in tool_calls)
+    assert any(tool_call.raw_item.name == "list_ministerial_roles" for tool_call in tool_calls)
 
 
 @pytest.mark.asyncio

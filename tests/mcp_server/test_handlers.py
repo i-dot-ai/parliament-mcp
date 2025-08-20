@@ -66,7 +66,7 @@ async def test_search_hansard_contributions_with_member_id(
 @pytest.mark.integration
 async def test_search_debates(qdrant_query_handler: QdrantQueryHandler):
     """Test debates search with test data."""
-    results = await qdrant_query_handler.search_debates(
+    results = await qdrant_query_handler.search_debate_titles(
         date_from="2025-06-20",
         date_to="2025-06-25",
         house="Commons",
@@ -79,8 +79,9 @@ async def test_search_debates(qdrant_query_handler: QdrantQueryHandler):
 @pytest.mark.integration
 async def test_pmqs_are_on_wednesdays(qdrant_query_handler: QdrantQueryHandler):
     """Test that PMQs are on Wednesdays."""
-    results = await qdrant_query_handler.search_debates(
+    results = await qdrant_query_handler.search_debate_titles(
         # Not technically the title of the debate, but good to test with
+        # Should find https://hansard.parliament.uk/Commons/2025-06-25/debates/4777FB03-8AEC-422A-996F-A395AAD30963/Engagements
         query="Prime Minister's Questions",
         date_from="2025-01-01",
         date_to="2025-07-31",
@@ -126,8 +127,10 @@ async def test_search_hansard_contributions_with_filters(
 @pytest.mark.integration
 async def test_search_debates_with_filters(qdrant_query_handler: QdrantQueryHandler):
     """Test debates search with specific parameters."""
-    results = await qdrant_query_handler.search_debates(
-        query="G7 and NATO Summits",
+
+    # Should find https://hansard.parliament.uk/commons/2025-06-25/debates/600CC999-37EB-4B34-A324-806698158D78/Nuclear-CertifiedAircraftProcurement
+    results = await qdrant_query_handler.search_debate_titles(
+        query="Aircraft Procurement",
         date_from="2025-06-20",
         max_results=5,
     )
@@ -135,3 +138,18 @@ async def test_search_debates_with_filters(qdrant_query_handler: QdrantQueryHand
     assert len(results) <= 5  # Should respect max_results parameter
     # May be 0 if no matching data in test set for this specific query and date
     assert len(results) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_search_parliamentary_questions_with_answering_body_name(qdrant_query_handler: QdrantQueryHandler):
+    """Test Parliamentary Questions search with answering body name."""
+    # https://members-api.parliament.uk/index.html#operations-Reference-get_api_Reference_AnsweringBodies
+    results = await qdrant_query_handler.search_parliamentary_questions(
+        answering_body_name="Department for Transport",
+        max_results=10,
+    )
+    assert results is not None
+    assert len(results) > 0
+    for result in results:
+        assert "Department for Transport" in result["answeringBodyName"]
