@@ -129,6 +129,11 @@ ECR_REPO_URL=$(ECR_URL)/$(ECR_REPO_NAME)
 IMAGE_TAG=$$(git rev-parse HEAD)
 IMAGE=$(ECR_REPO_URL):$(IMAGE_TAG)
 
+# Generate version string for the application
+SHORT_COMMIT=$$(git rev-parse --short HEAD)
+ISO_DATE=$$(date -u +%Y%m%d)
+APP_VERSION=$(service)-$(SHORT_COMMIT)-$(ISO_DATE)
+
 DOCKER_BUILDER_CONTAINER=$(APP_NAME)
 cache ?= ./.build-cache
 APP_CACHE_DIR = $(cache)/$(APP_NAME)/$(service)
@@ -140,19 +145,21 @@ docker_login:
 docker_build: ## Build the docker container for the specified service when running in CI/CD
 	@if [ "$(service)" = "lambda" ]; then \
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
+		--build-arg VERSION="$(APP_VERSION)" \
 		--cache-to type=local,dest=$(APP_CACHE_DIR) \
 		--cache-from type=local,src=$(APP_CACHE_DIR) -f Dockerfile.lambda .; \
 	elif [ "$(service)" = "mcp_server" ]; then \
 		DOCKER_BUILDKIT=1 docker buildx build --platform linux/amd64 --load --builder=$(DOCKER_BUILDER_CONTAINER) -t $(IMAGE) \
+		--build-arg VERSION="$(APP_VERSION)" \
 		--cache-to type=local,dest=$(APP_CACHE_DIR) \
 		--cache-from type=local,src=$(APP_CACHE_DIR) -f Dockerfile.mcp-server .; \
 	fi
 
 docker_build_local: ## Build the docker container for the specified service locally
 	@if [ "$(service)" = "lambda" ]; then \
-		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) -f Dockerfile.lambda .; \
+		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) --build-arg VERSION="$(APP_VERSION)" -f Dockerfile.lambda .; \
 	elif [ "$(service)" = "mcp_server" ]; then \
-		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) -f Dockerfile.mcp-server .; \
+		DOCKER_BUILDKIT=1 docker build -t $(IMAGE) --build-arg VERSION="$(APP_VERSION)" -f Dockerfile.mcp-server .; \
 	fi
 
 docker_build_lambda: ## Build the docker container for the lambda function
