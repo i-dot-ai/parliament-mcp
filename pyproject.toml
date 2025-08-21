@@ -15,7 +15,7 @@ skip = [
 
 [project]
 name = "parliament-mcp"
-version = "0.1.0"
+version = "0.2.0"
 authors = [{name = "i.AI", email = "i-dot-ai-enquiries@cabinetoffice.gov.uk"}]
 license = {text = "MIT"}
 description = "A library for working with UK Parliamentary data"

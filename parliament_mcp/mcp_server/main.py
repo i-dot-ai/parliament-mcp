@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from parliament_mcp import __version__
 from parliament_mcp.mcp_server.api import mcp_server, settings
 
 
@@ -20,7 +21,13 @@ def create_app():
 
     @app.get("/healthcheck")
     async def health_check():
-        return JSONResponse(status_code=200, content={"status": "ok"})
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "ok",
+                "version": __version__,
+            },
+        )
 
     app.mount(settings.MCP_ROOT_PATH, mcp_server.streamable_http_app())
 

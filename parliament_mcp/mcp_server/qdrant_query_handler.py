@@ -350,6 +350,7 @@ class QdrantQueryHandler:
         dateTo: str | None = None,  # noqa: N803
         party: str | None = None,
         member_id: int | None = None,
+        answering_body_name: str | None = None,
         min_score: float = 0,
         max_results: int = 100,
     ) -> list[dict]:
@@ -362,6 +363,7 @@ class QdrantQueryHandler:
             dateTo: End date in format 'YYYY-MM-DD' (optional)
             party: Filter by party (optional)
             member_id: Filter by member id (optional)
+            answering_body_name: Filter by answering body name (optional)
             min_score: Minimum relevance score (default 0)
             max_results: Maximum number of results to return (default 100)
         """
@@ -371,6 +373,11 @@ class QdrantQueryHandler:
             build_match_filter("askingMember.party", party),
             build_match_filter("askingMember.id", member_id),
         ]
+
+        if answering_body_name:
+            filter_conditions.append(
+                FieldCondition(key="answeringBodyName", match=models.MatchText(text=answering_body_name))
+            )
 
         query_filter = build_filters(filter_conditions)
 
@@ -443,6 +450,7 @@ class QdrantQueryHandler:
                     "answeringMember": payload.get("answeringMember"),
                     "dateTabled": parse_date(payload.get("dateTabled")),
                     "dateAnswered": parse_date(payload.get("dateAnswered")),
+                    "answeringBodyName": payload.get("answeringBodyName"),
                 }
             )
 

@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import json
 import logging
@@ -12,7 +11,6 @@ from parliament_mcp.qdrant_data_loaders import cached_limited_get
 logger = logging.getLogger(__name__)
 
 MEMBERS_API_BASE_URL = "https://members-api.parliament.uk"
-members_api_semaphore = asyncio.Semaphore(2)
 
 
 def sanitize_params(**kwargs):
@@ -135,31 +133,50 @@ async def request_members_api(
     params = (params or {}) | {"format": "json"}
     logger.info("Requesting members API: %s, %s", url, params)
 
-    async with members_api_semaphore:
-        try:
-            response = await cached_limited_get(
-                url,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "Parlex MCP",
-                },
-                params=params,
-            )
-            response.raise_for_status()
-            result = response.json()
+    try:
+        response = await cached_limited_get(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "Parlex MCP",
+            },
+            params=params,
+        )
+        response.raise_for_status()
+        result = response.json()
 
-            result = recursive_flatten_links_and_values(result)
+        result = recursive_flatten_links_and_values(result)
 
-            # Remove blank fields
-            if remove_null_values:
-                result = recursive_remove_null_values(result)
+        # Remove blank fields
+        if remove_null_values:
+            result = recursive_remove_null_values(result)
 
-            result = remap_values(result)
+        result = remap_values(result)
 
-            if return_string:
-                return json.dumps(result)
-            else:
-                return result
-        except Exception:
-            logger.exception("Exception in request_members_api: %s, %s", url, params)
-            raise
+        if return_string:
+            return json.dumps(result)
+        else:
+            return result
+    except Exception:
+        logger.exception("Exception in request_members_api: %s, %s", url, params)
+        raise
+
+
+def clean_posts_list(posts_list: list[dict]) -> list:
+    """
+    Clean the posts list to remove fields that are not needed for the MCP server.
+    """
+    for post in posts_list:
+        for field in ["type", "createdWhen", "order", "id", "governmentDepartments"]:
+            if field in post:
+                post.pop(field)
+        for post_holder in post["postHolders"]:
+            for field in ["isPaid", "thumbnailUrl", "endDate"]:
+                if field in post_holder:
+                    post_holder.pop(field)
+            # member fields
+            for field in ["latestHouseMembership", "latestParty", "nameFullTitle", "nameListAs"]:
+                if field in post_holder["member"]:
+                    post_holder["member"].pop(field)
+
+    return posts_list
