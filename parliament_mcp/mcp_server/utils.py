@@ -126,7 +126,6 @@ async def request_members_api(
     endpoint: str,
     params: dict[str, Any] | None = None,
     remove_null_values: bool = False,
-    return_string: bool = True,
 ) -> Any:
     """Make a request to the Parliament API and return JSON response"""
     url = f"{MEMBERS_API_BASE_URL}{endpoint}"
@@ -151,12 +150,7 @@ async def request_members_api(
         if remove_null_values:
             result = recursive_remove_null_values(result)
 
-        result = remap_values(result)
-
-        if return_string:
-            return json.dumps(result)
-        else:
-            return result
+        return remap_values(result)
     except Exception:
         logger.exception("Exception in request_members_api: %s, %s", url, params)
         raise
@@ -171,11 +165,11 @@ def clean_posts_list(posts_list: list[dict]) -> list:
             if field in post:
                 post.pop(field)
         for post_holder in post["postHolders"]:
-            for field in ["isPaid", "thumbnailUrl", "endDate"]:
+            for field in ["isPaid", "thumbnailUrl", "endDate", "layingMinisterName"]:
                 if field in post_holder:
                     post_holder.pop(field)
             # member fields
-            for field in ["latestHouseMembership", "latestParty", "nameFullTitle", "nameListAs"]:
+            for field in ["latestHouseMembership", "latestParty", "nameFullTitle", "nameListAs", "nameAddressAs"]:
                 if field in post_holder["member"]:
                     post_holder["member"].pop(field)
 
