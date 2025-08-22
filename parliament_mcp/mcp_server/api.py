@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -31,7 +30,7 @@ async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
         }
 
 
-mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=True, lifespan=mcp_lifespan)
+mcp_server = FastMCP(name="Parliament MCP Server", lifespan=mcp_lifespan)
 
 # init Sentry if configured
 if settings.SENTRY_DSN and settings.ENVIRONMENT in ["dev", "preprod", "prod"] and settings.SENTRY_DSN != "placeholder":
@@ -190,37 +189,28 @@ async def get_detailed_member_information(
 
     tasks = {}
     async with asyncio.TaskGroup() as tg:
-        tasks["member"] = tg.create_task(request_members_api(f"/api/Members/{member_id}", return_string=False))
+        tasks["member"] = tg.create_task(request_members_api(f"/api/Members/{member_id}"))
         if include_synopsis:
-            tasks["synopsis"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/Synopsis", return_string=False)
-            )
+            tasks["synopsis"] = tg.create_task(request_members_api(f"/api/Members/{member_id}/Synopsis"))
         if include_biography:
-            tasks["biography"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/Biography", return_string=False)
-            )
+            tasks["biography"] = tg.create_task(request_members_api(f"/api/Members/{member_id}/Biography"))
         if include_contact:
             tasks["contact"] = tg.create_task(
                 request_members_api(
                     f"/api/Members/{member_id}/Contact",
-                    return_string=False,
                     remove_null_values=True,
                 )
             )
         if include_registered_interests:
             tasks["registered_interests"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/RegisteredInterests", return_string=False)
+                request_members_api(f"/api/Members/{member_id}/RegisteredInterests")
             )
 
     if include_voting_record:
         async with asyncio.TaskGroup() as tg:
             member_house = tasks["member"].result()["latestHouseMembership"]["house"]
             tasks["voting"] = tg.create_task(
-                request_members_api(
-                    f"/api/Members/{member_id}/Voting",
-                    params={"house": member_house},
-                    return_string=False,
-                )
+                request_members_api(f"/api/Members/{member_id}/Voting", params={"house": member_house})
             )
 
     # Build result dictionary, handling any exceptions
@@ -261,8 +251,7 @@ async def list_ministerial_roles(
     if include_all_minsiters:
         # Junior ministers are included when querying by departmentId
         posts = []
-        departments = await request_members_api("/api/Reference/Departments")
-        departments = json.loads(departments)
+        departments = await get_departments()
 
         tasks = []
         async with asyncio.TaskGroup() as tg:
@@ -270,11 +259,7 @@ async def list_ministerial_roles(
                 tasks.append(
                     (
                         tg.create_task(
-                            request_members_api(
-                                f"/api/Posts/{post_type}",
-                                params={"departmentId": department["id"]},
-                                return_string=False,
-                            )
+                            request_members_api(f"/api/Posts/{post_type}", params={"departmentId": department["id"]})
                         ),
                         department,
                     )
@@ -288,14 +273,14 @@ async def list_ministerial_roles(
                     {"department": department["name"], "department_id": department["id"], "posts": department_posts}
                 )
     else:
-        posts = await request_members_api(f"/api/Posts/{post_type}", return_string=False)
+        posts = await request_members_api(f"/api/Posts/{post_type}")
 
         if posts:
             party_info = posts[0]["postHolders"][0]["member"]["latestParty"]
 
         posts = clean_posts_list(posts)
 
-    return json.dumps({"posts": posts, "party_info": party_info})
+    return {"posts": posts, "party_info": party_info}
 
 
 # Reference endpoints
@@ -303,7 +288,10 @@ async def list_ministerial_roles(
 @log_tool_call
 async def get_departments() -> Any:
     """Get departments"""
-    return await request_members_api("/api/Reference/Departments")
+    results = await request_members_api("/api/Reference/Departments")
+    # Leader of HM Official Opposition is a special case not returned by the departments API
+    results.append({"id": 107, "name": "Leader of HM Official Opposition"})
+    return results
 
 
 @mcp_server.tool("search_parliamentary_questions")
