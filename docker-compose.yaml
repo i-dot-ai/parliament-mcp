@@ -6,7 +6,7 @@ services:
       - "${QDRANT_PORT:-6333}:6333"
       - "6334:6334"
     volumes:
-      - qdrant_data:/qdrant/storage
+      - ./tests/.parliament-test-qdrant-data:/qdrant/storage:z
     networks:
       - parliament-mcp-network
     # Note: Qdrant container doesn't include curl, so we'll rely on port availability

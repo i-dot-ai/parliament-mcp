@@ -21,12 +21,20 @@ from qdrant_client import AsyncQdrantClient
 from testcontainers.qdrant import QdrantContainer
 
 from parliament_mcp.embedding_helpers import get_openai_client
+from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
 from parliament_mcp.qdrant_helpers import collection_exists, initialize_qdrant_collections
 from parliament_mcp.settings import settings
 
 # Load environment variables from .env file
 dotenv.load_dotenv(override=True)
+
+# Configure logging for tests
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True,  # Override any existing configuration
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +172,11 @@ async def qdrant_in_memory_test_client() -> AsyncGenerator[AsyncQdrantClient]:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def test_mcp_server(qdrant_test_client: AsyncQdrantClient) -> AsyncGenerator[MCPServerStreamableHttp]:
+async def test_mcp_client(qdrant_test_client: AsyncQdrantClient) -> AsyncGenerator[MCPServerStreamableHttp]:
     """Start the MCP server backed by the test Elasticsearch client."""
-    config = uvicorn.Config("parliament_mcp.mcp_server.main:create_app", host="127.0.0.1", port=8081, log_level="info")
+    config = uvicorn.Config(
+        "parliament_mcp.mcp_server.main:create_app", host="127.0.0.1", port=8081, log_level="info", factory=True
+    )
     server = uvicorn.Server(config=config)
 
     # Create a task for the server
@@ -190,13 +200,13 @@ async def test_mcp_server(qdrant_test_client: AsyncQdrantClient) -> AsyncGenerat
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_mcp_agent(test_mcp_server: MCPServerStreamableHttp):
+async def test_mcp_agent(test_mcp_client: MCPServerStreamableHttp):
     """Agent fixture that uses test settings and running MCP server."""
     client = get_openai_client(settings)
     agent = Agent(
         name="Parliament research assistant",
         model=OpenAIResponsesModel(openai_client=client, model="gpt-4o-mini"),
-        mcp_servers=[test_mcp_server],
+        mcp_servers=[test_mcp_client],
     )
     yield agent
 
@@ -211,3 +221,9 @@ async def qdrant_cloud_test_client() -> AsyncGenerator[AsyncQdrantClient]:
     )
     yield qdrant_client
     await qdrant_client.close()
+
+
+@pytest.fixture(scope="session")
+async def qdrant_query_handler(qdrant_test_client: AsyncQdrantClient):
+    openai_client = get_openai_client(settings)
+    return QdrantQueryHandler(qdrant_test_client, openai_client, settings)

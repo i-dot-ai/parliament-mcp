@@ -30,7 +30,7 @@ async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
         }
 
 
-mcp_server = FastMCP(name="Parliament MCP Server", lifespan=mcp_lifespan)
+mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=False, lifespan=mcp_lifespan)
 
 # init Sentry if configured
 if settings.SENTRY_DSN and settings.ENVIRONMENT in ["dev", "preprod", "prod"] and settings.SENTRY_DSN != "placeholder":
@@ -301,7 +301,7 @@ async def search_parliamentary_questions(
     dateFrom: str | None = Field(None, description="Start date (YYYY-MM-DD)"),
     dateTo: str | None = Field(None, description="End date (YYYY-MM-DD)"),
     party: str | None = Field(None, description="Party"),
-    member_id: int | None = Field(None, description="Member ID"),
+    asking_member_id: int | None = Field(None, description="Member ID of the asking member"),
     answering_body_name: str | None = Field(
         None,
         description="Answering body name (e.g. 'Department for Transport, Cabinet Office, etc.)",
@@ -327,7 +327,7 @@ async def search_parliamentary_questions(
         dateFrom=dateFrom,
         dateTo=dateTo,
         party=party,
-        member_id=member_id,
+        asking_member_id=asking_member_id,
         answering_body_name=answering_body_name,
     )
 
