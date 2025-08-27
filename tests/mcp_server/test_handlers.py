@@ -1,17 +1,8 @@
 from datetime import UTC, datetime
 
 import pytest
-from qdrant_client import AsyncQdrantClient
 
-from parliament_mcp.embedding_helpers import get_openai_client
 from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
-from parliament_mcp.settings import settings
-
-
-@pytest.fixture
-async def qdrant_query_handler(qdrant_test_client: AsyncQdrantClient):
-    openai_client = get_openai_client(settings)
-    return QdrantQueryHandler(qdrant_test_client, openai_client, settings)
 
 
 # mark async
