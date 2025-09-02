@@ -21,8 +21,7 @@ The MCP Server exposes 11 tools to assist in parliamentary research:
 3. **`search_members`** - Search for members of the Commons or Lords by various criteria
 4. **`get_detailed_member_information`** - Get comprehensive member information including biography, contact, interests, and voting record
 5. **`get_state_of_the_parties`** - Get state of the parties for a house on a specific date
-6. **`get_government_posts`** - Get exhaustive list of all government posts and their current holders
-7. **`get_opposition_posts`** - Get exhaustive list of all opposition posts and their current holders
+6. **`list_ministerial_roles`** - Get exhaustive list of all government or opposition posts and their current holders
 8. **`get_departments`** - Get reference data for government departments
 9. **`search_parliamentary_questions`** - Search Parliamentary Written Questions (PQs) by topic, date, party, or member
 10. **`search_debates`** - Search through debate titles to find relevant debates

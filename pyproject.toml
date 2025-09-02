@@ -44,6 +44,7 @@ dependencies = [
     "fastembed>=0.7.1",
     "tenacity>=9.1.2",
     "boto3>=1.39.12",
+    "markdownify>=1.2.0",
 ]
 
 [project.scripts]

@@ -8,12 +8,13 @@ import sentry_sdk
 from mcp.server.fastmcp.server import FastMCP
 from pydantic import Field
 
-from parliament_mcp.embedding_helpers import get_openai_client
 from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
+from parliament_mcp.openai_helpers import get_openai_client
 from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
-from .utils import clean_posts_list, log_tool_call, request_members_api, sanitize_params
+from .committees import register_committee_tools
+from .utils import clean_posts_list, log_tool_call, request_committees_api, request_members_api, sanitize_params
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +28,14 @@ async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
     async with get_async_qdrant_client(settings) as qdrant_client:
         yield {
             "qdrant_query_handler": QdrantQueryHandler(qdrant_client, openai_client, settings),
+            "openai_client": openai_client,
         }
 
 
 mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=False, lifespan=mcp_lifespan)
+
+# Register committee tools
+register_committee_tools(mcp_server)
 
 # init Sentry if configured
 if settings.SENTRY_DSN and settings.ENVIRONMENT in ["dev", "preprod", "prod"] and settings.SENTRY_DSN != "placeholder":
@@ -172,6 +177,9 @@ async def get_detailed_member_information(
     include_voting_record: bool = Field(
         False, description="Include recent voting record for the member's current house"
     ),
+    include_committee_membership: bool = Field(
+        False, description="Include all committees that the member has served in"
+    ),
 ) -> Any:
     """Get detailed member information.
 
@@ -205,6 +213,14 @@ async def get_detailed_member_information(
             tasks["registered_interests"] = tg.create_task(
                 request_members_api(f"/api/Members/{member_id}/RegisteredInterests")
             )
+
+        if include_committee_membership:
+
+            async def get_member_committees():
+                result = await request_committees_api("/api/Members", params={"Members": [member_id]})
+                return result[0]["committees"]
+
+            tasks["committee_membership"] = tg.create_task(get_member_committees())
 
     if include_voting_record:
         async with asyncio.TaskGroup() as tg:

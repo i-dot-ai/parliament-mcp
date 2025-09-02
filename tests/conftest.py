@@ -20,8 +20,8 @@ from agents.mcp import MCPServerStreamableHttp, MCPServerStreamableHttpParams
 from qdrant_client import AsyncQdrantClient
 from testcontainers.qdrant import QdrantContainer
 
-from parliament_mcp.embedding_helpers import get_openai_client
 from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
+from parliament_mcp.openai_helpers import get_openai_client
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
 from parliament_mcp.qdrant_helpers import collection_exists, initialize_qdrant_collections
 from parliament_mcp.settings import settings

@@ -30,7 +30,6 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from parliament_mcp.embedding_helpers import embed_batch, get_openai_client
 from parliament_mcp.models import (
     ContributionsResponse,
     DebateParent,
@@ -38,6 +37,7 @@ from parliament_mcp.models import (
     ParliamentaryQuestionsResponse,
     QdrantDocument,
 )
+from parliament_mcp.openai_helpers import embed_batch, get_openai_client
 from parliament_mcp.settings import ParliamentMCPSettings, settings
 
 logger = logging.getLogger(__name__)

@@ -6,7 +6,7 @@ from openai import AsyncAzureOpenAI
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import DatetimeRange, FieldCondition, Filter, MatchValue
 
-from parliament_mcp.embedding_helpers import embed_single
+from parliament_mcp.openai_helpers import embed_single
 from parliament_mcp.settings import ParliamentMCPSettings
 
 MINIMUM_DEBATE_HITS = 2
