@@ -73,16 +73,3 @@ async def embed_batch(
             raise
 
     return all_embeddings
-
-
-async def chat_completion(
-    client: AsyncAzureOpenAI,
-    input_messages: list[dict],
-    model: str = "gpt-5",
-) -> str:
-    response = await client.responses.create(
-        model=model,
-        input=input_messages,
-        reasoning={"effort": "minimal"},
-    )
-    return response.choices[0].message.content

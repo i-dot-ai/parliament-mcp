@@ -92,7 +92,7 @@ async def get_committee_events(committee_id: int, upcoming_only: bool = True):
 
 async def get_committee_members(committee_id: int):
     response = await request_committees_api(
-        f"/api/Committees/{committee_id}/Members", params={"MembershipStatus": "All"}
+        f"/api/Committees/{committee_id}/Members", params={"MembershipStatus": "Current"}
     )
 
     def format_role(role):
@@ -263,7 +263,7 @@ async def get_publication_document(publication_id: int, document_id: int):
         "id": document_id,
         "document": document,
         "file_name": data["fileName"],
-        "file_name_suffix": file_name_suffix,
+        "document_url": f"https://committees.parliament.uk/publications/{publication_id}/documents/{document_id}/default/",
     }
 
 
@@ -339,6 +339,8 @@ async def get_committee_document(
     - Returns the evidence document as markdown
 
     For publication documents:
+    - Publication IDs are found in the publications section of committee details, including correspondence and reports
+    - Publications always have document_type="publication"
     - Provide document_type="publication", publication_id, and document_ids
     - Returns a list of publication documents
 
@@ -368,7 +370,11 @@ async def get_committee_document(
         )
         response.raise_for_status()
         data = response.json()["data"]
-        return md(base64.b64decode(data).decode("utf-8"), strip=["img"])
+        return {
+            "evidence_id": evidence_id,
+            "document": md(base64.b64decode(data).decode("utf-8"), strip=["img"]),
+            "document_url": f"https://committees.parliament.uk/{endpoint}/{evidence_id}/html/",
+        }
 
     # Handle publication documents
     elif document_type == "publication":
