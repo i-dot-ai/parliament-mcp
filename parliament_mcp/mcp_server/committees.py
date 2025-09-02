@@ -1,10 +1,12 @@
 import asyncio
 import base64
+import io
 import logging
 from datetime import UTC, datetime
 from typing import Literal
 
 from markdownify import markdownify as md
+from markitdown import MarkItDown
 from mcp.server.fastmcp.server import FastMCP
 
 from parliament_mcp.qdrant_data_loaders import cached_limited_get
@@ -14,6 +16,8 @@ from .utils import COMMITTEES_API_BASE_URL, log_tool_call, request_committees_ap
 logger = logging.getLogger(__name__)
 
 MAX_COMMITTEES_PER_REQUEST = 256
+
+markitdown = MarkItDown()
 
 
 def clean_committee_item(committee_item: dict):
@@ -236,74 +240,153 @@ async def get_basic_committee_info(committee_id: int):
     }
 
 
-@log_tool_call
-async def get_committee_details(committee_id: int):
-    """
-    Get extensive and detailed information about a particular committee
+async def get_publication_document(publication_id: int, document_id: int):
+    response = await cached_limited_get(
+        f"{COMMITTEES_API_BASE_URL}/api/Publications/{publication_id}/Document/{document_id}/OriginalFormat",
+        headers={"accept": "application/json"},
+    )
+    response.raise_for_status()
+    data = response.json()
 
-    Args:
-        committee_id: The ID of the committee
+    file_name_suffix = data["fileName"].split(".")[-1].lower()
+    if file_name_suffix in {"docx", "pdf", "xlsx"}:
+        binary_io = io.BytesIO(base64.b64decode(data["data"]))
+        document = markitdown.convert(binary_io)
+    elif file_name_suffix == "html":
+        document = md(base64.b64decode(data["data"]).decode("utf-8"), strip=["img"])
 
-    Returns:
-        A dictionary with the following keys:
-        - basic_committee_info: Some summary information about the committee
-        - members: A list of members that have served on the committee
-        - publications: A list of publications that have been produced by the committee
-        - oral_evidence: A list of oral evidence sessions that have been held by the committee
-        - written_evidence: A list of written evidence that has been submitted to the committee
-        - committee_business: A list of business that has been conducted by the committee
-        - upcoming_events: A list of upcoming events that are scheduled for the committee
-    """
-    tasks = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["basic_committee_info"] = tg.create_task(get_basic_committee_info(committee_id))
-        tasks["members"] = tg.create_task(get_committee_members(committee_id))
-        tasks["publications"] = tg.create_task(get_committee_publications(committee_id))
-        tasks["oral_evidence"] = tg.create_task(get_committee_oral_evidence(committee_id))
-        tasks["written_evidence"] = tg.create_task(get_committee_written_evidence(committee_id))
-        tasks["committee_business"] = tg.create_task(get_committee_business(committee_id))
-        tasks["upcoming_events"] = tg.create_task(get_committee_events(committee_id, upcoming_only=True))
-
+    else:
+        message = f"Unsupported document type: {file_name_suffix}"
+        logger.error(message)
+        raise ValueError(message) or (message)
     return {
-        "basic_committee_info": tasks["basic_committee_info"].result(),
-        "members": tasks["members"].result(),
-        "oral_evidence": tasks["oral_evidence"].result(),
-        "written_evidence": tasks["written_evidence"].result(),
-        "publications": tasks["publications"].result(),
-        "committee_business": tasks["committee_business"].result(),
-        "upcoming_events": tasks["upcoming_events"].result(),
+        "id": document_id,
+        "document": document,
+        "file_name": data["fileName"],
+        "file_name_suffix": file_name_suffix,
     }
 
 
 @log_tool_call
-async def get_committee_document(document_id: int, document_type: Literal["oral_evidence", "written_evidence"]):
+async def get_committee_details(
+    committee_id: int,
+    include_members: bool = True,
+    include_publications: bool = True,
+    include_oral_evidence: bool = True,
+    include_written_evidence: bool = True,
+    include_business: bool = True,
+    include_upcoming_events: bool = True,
+):
     """
-    Get a document from a committee
-
-    Use the oral evidence ID or the written evidence ID to get the document.
-
-    Examples:
-    - get_committee_document(document_id=123, document_type="oral_evidence")
-    - get_committee_document(document_id=123, document_type="written_evidence")
+    Get information about a particular committee. All sections are included by default.
 
     Args:
-        document_id: The ID of the document
-        document_type: The type of document (oral_evidence, written_evidence)
-    """
-    if document_type == "oral_evidence":
-        response = await cached_limited_get(
-            f"{COMMITTEES_API_BASE_URL}/api/OralEvidence/{document_id}/Document/Html",
-            headers={"accept": "application/json"},
-        )
-    else:
-        response = await cached_limited_get(
-            f"{COMMITTEES_API_BASE_URL}/api/WrittenEvidence/{document_id}/Document/Html",
-            headers={"accept": "application/json"},
-        )
+        committee_id: The ID of the committee
+        include_members: Include list of committee members (default: True)
+        include_publications: Include committee publications (default: True)
+        include_oral_evidence: Include oral evidence sessions (default: True)
+        include_written_evidence: Include written evidence submissions (default: True)
+        include_business: Include committee business/inquiries (default: True)
+        include_upcoming_events: Include upcoming events (default: True)
 
-    response.raise_for_status()
-    data = response.json()["data"]
-    return md(base64.b64decode(data).decode("utf-8"), strip=["img"])
+    Returns:
+        A dictionary with requested sections:
+        - basic_committee_info: Always included - summary information about the committee
+        - members: List of members (if requested)
+        - publications: List of publications (if requested)
+        - oral_evidence: List of oral evidence sessions (if requested)
+        - written_evidence: List of written evidence (if requested)
+        - committee_business: List of business/inquiries (if requested)
+        - upcoming_events: List of upcoming events (if requested)
+    """
+    tasks = {}
+    async with asyncio.TaskGroup() as tg:
+        # Always include basic info
+        tasks["basic_committee_info"] = tg.create_task(get_basic_committee_info(committee_id))
+        # Conditionally include other sections
+        if include_members:
+            tasks["members"] = tg.create_task(get_committee_members(committee_id))
+        if include_publications:
+            tasks["publications"] = tg.create_task(get_committee_publications(committee_id))
+        if include_oral_evidence:
+            tasks["oral_evidence"] = tg.create_task(get_committee_oral_evidence(committee_id))
+        if include_written_evidence:
+            tasks["written_evidence"] = tg.create_task(get_committee_written_evidence(committee_id))
+        if include_business:
+            tasks["committee_business"] = tg.create_task(get_committee_business(committee_id))
+        if include_upcoming_events:
+            tasks["upcoming_events"] = tg.create_task(get_committee_events(committee_id, upcoming_only=True))
+
+    # Build result with only requested sections
+    result = {}
+    for key, task in tasks.items():
+        result[key] = task.result()
+    return result
+
+
+@log_tool_call
+async def get_committee_document(
+    document_type: Literal["oral_evidence", "written_evidence", "publication"],
+    evidence_id: int | None = None,
+    publication_id: int | None = None,
+    document_ids: list[int] | None = None,
+):
+    """
+    Get committee documents - evidence or publications
+
+    For evidence documents (oral or written):
+    - Provide document_type and evidence_id
+    - Returns the evidence document as markdown
+
+    For publication documents:
+    - Provide document_type="publication", publication_id, and document_ids
+    - Returns a list of publication documents
+
+    Examples:
+    - get_committee_document(document_type="oral_evidence", evidence_id=123)
+    - get_committee_document(document_type="written_evidence", evidence_id=456)
+    - get_committee_document(document_type="publication", publication_id=789, document_ids=[111, 222])
+
+    Args:
+        document_type: Type of document (oral_evidence, written_evidence, publication)
+        evidence_id: ID for evidence documents (oral or written)
+        publication_id: ID for publication documents
+        document_ids: List of document IDs for publication documents
+    """
+
+    # Handle evidence documents
+    if document_type in ["oral_evidence", "written_evidence"]:
+        if evidence_id is None:
+            message = f"evidence_id required for {document_type} documents"
+            logger.error(message)
+            raise ValueError(message)
+
+        endpoint = "OralEvidence" if document_type == "oral_evidence" else "WrittenEvidence"
+        response = await cached_limited_get(
+            f"{COMMITTEES_API_BASE_URL}/api/{endpoint}/{evidence_id}/Document/Html",
+            headers={"accept": "application/json"},
+        )
+        response.raise_for_status()
+        data = response.json()["data"]
+        return md(base64.b64decode(data).decode("utf-8"), strip=["img"])
+
+    # Handle publication documents
+    elif document_type == "publication":
+        if publication_id is None or document_ids is None:
+            message = "publication_id and document_ids required for publication documents"
+            logger.error(message)
+            raise ValueError(message)
+
+        documents = []
+        async with asyncio.TaskGroup() as tg:
+            for document_id in document_ids:
+                documents.append(tg.create_task(get_publication_document(publication_id, document_id)))
+
+        return [document.result() for document in documents]
+    else:
+        message = f"Invalid document_type: {document_type}"
+        logger.error(message)
+        raise ValueError(message)
 
 
 def register_committee_tools(mcp_server: FastMCP):
