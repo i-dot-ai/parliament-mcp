@@ -34,7 +34,6 @@ async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
 
 mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=False, lifespan=mcp_lifespan)
 
-# Register committee tools
 register_committee_tools(mcp_server)
 register_members_tools(mcp_server)
 
