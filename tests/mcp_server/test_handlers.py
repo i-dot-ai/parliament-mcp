@@ -11,8 +11,8 @@ from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 async def test_search_parliamentary_questions(qdrant_query_handler: QdrantQueryHandler):
     """Test Parliamentary Questions search with test data."""
     results = await qdrant_query_handler.search_parliamentary_questions(
-        dateFrom="2025-06-20",
-        dateTo="2025-06-25",
+        date_from="2025-06-20",
+        date_to="2025-06-25",
     )
     assert results is not None
     assert len(results) > 0

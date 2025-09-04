@@ -138,6 +138,7 @@ class QdrantQueryHandler:
                 "date": first_hit.get("SittingDate"),
                 "house": first_hit.get("House"),
                 "debate_parents": first_hit.get("debate_parents", []),
+                "debate_url": first_hit.get("debate_url"),
             }
 
             results.append(debate)

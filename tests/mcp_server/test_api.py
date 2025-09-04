@@ -7,8 +7,8 @@ from agents.mcp import MCPServerStreamableHttp
 @pytest.mark.asyncio
 async def test_get_detailed_member_information(test_mcp_client: MCPServerStreamableHttp):
     result = await test_mcp_client.call_tool(
-        "get_detailed_member_information",
-        {
+        tool_name="get_detailed_member_information",
+        arguments={
             # Sir Iain Duncan Smith
             "member_id": 152,
             "include_committee_membership": True,
@@ -27,7 +27,8 @@ async def test_get_detailed_member_information(test_mcp_client: MCPServerStreama
 @pytest.mark.asyncio
 async def test_list_all_committees(test_mcp_client: MCPServerStreamableHttp):
     result = await test_mcp_client.call_tool(
-        "list_all_committees",
+        tool_name="list_all_committees",
+        arguments={},
     )
     result = json.loads(result.content[0].text)
     assert result is not None
@@ -46,11 +47,11 @@ async def test_list_all_committees(test_mcp_client: MCPServerStreamableHttp):
 )
 async def test_get_committee_details(test_mcp_client: MCPServerStreamableHttp, committee_id: int, expected: dict):
     result = await test_mcp_client.call_tool(
-        "get_committee_details",
-        {
+        tool_name="get_committee_details",
+        arguments={
             "committee_id": committee_id,
         },
     )
     result = json.loads(result.content[0].text)
     assert result is not None
-    assert result["name"] == expected["name"]
+    assert result["basic_committee_info"]["name"] == expected["name"]

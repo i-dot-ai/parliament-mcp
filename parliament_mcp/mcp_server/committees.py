@@ -31,7 +31,7 @@ def clean_committee_item(committee_item: dict):
     Replace the `committeeTypes` key with a list of the `name` values
     Replace the `category` key with the `name` value
     """
-    # print(committee_item)
+
     keys_to_remove = ["nameHistory", "websiteLegacyRedirectEnabled", "websiteLegacyUrl", "showOnWebsite"]
     for key in keys_to_remove:
         committee_item.pop(key, None)
@@ -65,10 +65,9 @@ async def get_committee_business(committee_id: int):
 
 async def get_committee_events(committee_id: int, upcoming_only: bool = True):
     params = {"StartDateFrom": datetime.now(tz=UTC).date().isoformat()} if upcoming_only else {}
-    reponse = await request_committees_api(f"/api/Committees/{committee_id}/Events", params=params)
+    response = await request_committees_api(f"/api/Committees/{committee_id}/Events", params=params)
     result = []
-    reponse = reponse["items"]
-    for item in reponse:
+    for item in response["items"]:
         if len(item["committeeBusinesses"]) == 0:
             continue
 
@@ -216,7 +215,8 @@ async def list_all_committees(
         - subCommittees: A list of sub-committees
     """
     result = await request_committees_api(
-        "/api/Committees", params={"CommitteeStatus": committee_status, "House": house, "Take": 256}
+        "/api/Committees",
+        params={"CommitteeStatus": committee_status, "House": house, "Take": MAX_COMMITTEES_PER_REQUEST},
     )
 
     if result["totalResults"] == MAX_COMMITTEES_PER_REQUEST:
