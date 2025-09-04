@@ -238,4 +238,4 @@ tf_auto_apply:  ## Auto apply terraform
 ## Release app
 .PHONY: release
 release:
-	chmod +x ./release.sh && ./release.sh $(env)
+	chmod +x ./release.sh && ./release.sh $(env) --wait
