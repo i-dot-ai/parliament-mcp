@@ -2,6 +2,7 @@ import functools
 import json
 import logging
 import time
+import traceback
 from typing import Any
 
 from pydantic.fields import FieldInfo
@@ -60,7 +61,7 @@ def log_tool_call(func):
                 str_kwargs,
                 execution_time,
             )
-            raise
+            return f"Error in tool call `{func.__name__}`: {traceback.format_exc()}"
         else:
             return result
 
