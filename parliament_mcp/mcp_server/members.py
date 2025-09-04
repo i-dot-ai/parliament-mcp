@@ -19,51 +19,6 @@ def remove_tags(text):
 
 
 @log_tool_call
-async def search_constituency(
-    searchText: str | None = Field(None, description="Search for constituencies by name or text"),
-    constituency_id: int | None = Field(None, description="Get comprehensive constituency details by ID"),
-    skip: int = Field(0, description="Number of results to skip (for search)"),
-    take: int = Field(
-        5,
-        description="Number of results to take (Max 20, for search). Default 5 (reasonable for most use cases)",
-    ),
-) -> Any:
-    """
-    Search for constituencies or get comprehensive constituency details on a single constituency.
-
-    Usage patterns:
-    - searchText only: Search for constituencies by name/text
-    - constituency_id only: Get comprehensive constituency details including basic info, representations, and synopsis
-
-    Examples:
-    - search_constituency(searchText="London") - Search for constituencies containing "London"
-    - search_constituency(constituency_id=123) - Get comprehensive constituency details for ID 123
-    """
-    # Clean parameters to handle FieldInfo objects
-    params = sanitize_params(**locals())
-    searchText = params.get("searchText")
-    constituency_id = params.get("constituency_id")
-
-    # Validate parameter combination
-    if searchText is not None and constituency_id is not None:
-        msg = "Must provide either searchText or constituency_id, not both"
-        logger.error(msg)
-        raise ValueError(msg)
-
-    if searchText is None and constituency_id is None:
-        msg = "Must provide either searchText or constituency_id"
-        logger.error(msg)
-        raise ValueError(msg)
-
-    # Search for constituencies
-    if searchText is not None:
-        return await request_members_api("/api/Location/Constituency/Search", params)
-
-    # Get comprehensive constituency details
-    return await request_members_api(f"/api/Location/Constituency/{constituency_id}")
-
-
-@log_tool_call
 async def get_election_results(
     constituency_id: int | None = Field(None, description="Constituency ID"),
     election_id: int | None = Field(
@@ -102,10 +57,12 @@ async def search_members(
     Name: str | None = Field(None, description="Member name"),
     PartyId: int | None = Field(None, description="Party ID"),
     House: Literal["Commons", "Lords"] | None = Field(None, description="House (Commons or Lords)"),
-    ConstituencyId: int | None = Field(None, description="Constituency ID"),
-    Gender: str | None = Field(None, description="Gender"),
     member_since: str | None = Field(None, description="Was a member on or after date (YYYY-MM-DD)"),
     member_until: str | None = Field(None, description="Was a member on or before date (YYYY-MM-DD)"),
+    Location: str | None = Field(
+        None,
+        description="Search by location name (e.g. 'Manchester' or 'Stratford') or by full or partial postcode (e.g. 'E20, PH41, SW1A 0AA')",
+    ),
     IsCurrentMember: bool = Field(True, description="Whether the member is currently a member"),
     skip: int = Field(0, description="Number of results to skip"),
     take: int = Field(5, description="Number of results to take (Max 25), default 5"),
@@ -120,7 +77,7 @@ async def search_members(
         - name: Name of the member
         - latestHouseMembership.membershipFrom: Constituency of the member
         - party: Party of the member
-        - house: House of the member (1 = Commons, 2 = Lords)
+        - house: House of the member (Commons or Lords)
         - membershipStartDate: Membership started since (YYYY-MM-DD)
         - membershipEndDate: Membership ended since (YYYY-MM-DD)
         - latestParty: Latest party of the member
@@ -172,9 +129,6 @@ async def get_detailed_member_information(
         include_registered_interests: Whether to include member registered interests
         include_voting_record: Whether to include member voting record
     """
-    # Define the tasks we want to run
-
-    # Execute all tasks concurrently using TaskGroup
 
     tasks = {}
     async with asyncio.TaskGroup() as tg:
@@ -289,7 +243,6 @@ async def get_departments() -> Any:
 
 
 def register_members_tools(mcp_server: FastMCP):
-    mcp_server.tool("search_constituency")(search_constituency)
     mcp_server.tool("get_election_results")(get_election_results)
     mcp_server.tool("search_members")(search_members)
     mcp_server.tool("get_detailed_member_information")(get_detailed_member_information)
