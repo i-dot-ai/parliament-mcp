@@ -17,13 +17,6 @@ async def test_mcp_server_sequential_tool_benchmark(test_mcp_client: MCPServerSt
 
     async def make_tool_calls():
         await test_mcp_client.call_tool(
-            "search_constituency",
-            {
-                "searchText": "Manchester",
-            },
-        )
-
-        await test_mcp_client.call_tool(
             "search_members",
             {
                 "Name": "Keir Starmer",
@@ -49,6 +42,9 @@ async def test_mcp_server_sequential_tool_benchmark(test_mcp_client: MCPServerSt
                 "query": "NATO",
             },
         )
+
+    # cache warmup
+    await make_tool_calls()
 
     n = 10
     times = []

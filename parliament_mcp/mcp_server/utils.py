@@ -2,6 +2,7 @@ import functools
 import json
 import logging
 import time
+import traceback
 from typing import Any
 
 from pydantic.fields import FieldInfo
@@ -11,6 +12,7 @@ from parliament_mcp.qdrant_data_loaders import cached_limited_get
 logger = logging.getLogger(__name__)
 
 MEMBERS_API_BASE_URL = "https://members-api.parliament.uk"
+COMMITTEES_API_BASE_URL = "https://committees-api.parliament.uk"
 
 
 def sanitize_params(**kwargs):
@@ -37,8 +39,9 @@ def log_tool_call(func):
     async def wrapper(*args, **kwargs):
         # Clean parameters for logging
         params = sanitize_params(**kwargs)
-        str_params = json.dumps(params, default=str)
-        logger.info("Tool %s called with params: %s", func.__name__, str_params)
+        str_args = json.dumps(args, default=str)
+        str_kwargs = json.dumps(params, default=str)
+        logger.info("Tool %s called with args: %s, kwargs: %s", func.__name__, str_args, str_kwargs)
 
         # Record start time
         start_time = time.time()
@@ -52,12 +55,13 @@ def log_tool_call(func):
             # Calculate and log execution time even for failed calls
             execution_time = time.time() - start_time
             logger.exception(
-                "Exception in tool call `%s` with params %s. Failed after %s seconds",
+                "Exception in tool call `%s` with args %s, kwargs %s. Failed after %s seconds",
                 func.__name__,
-                str_params,
+                str_args,
+                str_kwargs,
                 execution_time,
             )
-            raise
+            return f"Error in tool call `{func.__name__}`: {traceback.format_exc()}"
         else:
             return result
 
@@ -153,6 +157,37 @@ async def request_members_api(
         return remap_values(result)
     except Exception:
         logger.exception("Exception in request_members_api: %s, %s", url, params)
+        raise
+
+
+async def request_committees_api(
+    endpoint: str,
+    params: dict[str, Any] | None = None,
+    remove_null_values: bool = True,
+) -> Any:
+    """Make a request to the Committees API and return JSON response"""
+    url = f"{COMMITTEES_API_BASE_URL}{endpoint}"
+    params = (params or {}) | {"format": "json"}
+    logger.info("Requesting committees API: %s, %s", url, params)
+    try:
+        response = await cached_limited_get(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "Parlex MCP",
+            },
+            params=params,
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        # Remove blank fields
+        if remove_null_values:
+            result = recursive_remove_null_values(result)
+
+        return remap_values(result)
+    except Exception:
+        logger.exception("Exception in request_committees_api: %s, %s", url, params)
         raise
 
 

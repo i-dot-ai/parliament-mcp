@@ -6,10 +6,19 @@ from openai import AsyncAzureOpenAI
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import DatetimeRange, FieldCondition, Filter, MatchValue
 
-from parliament_mcp.embedding_helpers import embed_single
+from parliament_mcp.openai_helpers import embed_single
 from parliament_mcp.settings import ParliamentMCPSettings
 
 MINIMUM_DEBATE_HITS = 2
+
+
+def parse_date(date_str: str | None) -> str | None:
+    if not date_str:
+        return None
+    try:
+        return datetime.fromisoformat(date_str).date().isoformat()
+    except (ValueError, TypeError):
+        return None
 
 
 def build_date_range_filter(
@@ -129,6 +138,7 @@ class QdrantQueryHandler:
                 "date": first_hit.get("SittingDate"),
                 "house": first_hit.get("House"),
                 "debate_parents": first_hit.get("debate_parents", []),
+                "debate_url": first_hit.get("debate_url"),
             }
 
             results.append(debate)
@@ -138,12 +148,12 @@ class QdrantQueryHandler:
     async def search_hansard_contributions(
         self,
         query: str | None = None,
-        memberId: int | None = None,  # noqa: N803
-        dateFrom: str | None = None,  # noqa: N803
-        dateTo: str | None = None,  # noqa: N803
-        debateId: str | None = None,  # noqa: N803
+        member_id: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        debate_id: str | None = None,
         house: Literal["Commons", "Lords"] | None = None,
-        maxResults: int = 100,  # noqa: N803
+        max_results: int = 100,
         min_score: float = 0,
     ) -> list[dict]:
         """
@@ -151,12 +161,12 @@ class QdrantQueryHandler:
 
         Args:
             query: Text to search for in contributions (optional)
-            memberId: Member ID (optional)
-            dateFrom: Start date in format 'YYYY-MM-DD' (optional)
-            dateTo: End date in format 'YYYY-MM-DD' (optional)
-            debateId: Debate ID (optional)
+            member_id: Member ID (optional)
+            date_from: Start date in format 'YYYY-MM-DD' (optional)
+            date_to: End date in format 'YYYY-MM-DD' (optional)
+            debate_id: Debate ID (optional)
             house: House (Commons|Lords) (optional)
-            maxResults: Maximum number of results to return (default 100)
+            max_results: Maximum number of results to return (default 100)
             min_score: Minimum relevance score (default 0)
 
         Returns:
@@ -166,16 +176,18 @@ class QdrantQueryHandler:
             ValueError: If no search parameters are provided
         """
         # Fail if none of the parameters are provided
-        if not query and not memberId and not dateFrom and not dateTo and not debateId and not house:
-            msg = "At least one of 'query', 'memberId', 'dateFrom', 'dateTo', 'debateId' or 'house' must be provided"
+        if not query and not member_id and not date_from and not date_to and not debate_id and not house:
+            msg = (
+                "At least one of 'query', 'member_id', 'date_from', 'date_to', 'debate_id' or 'house' must be provided"
+            )
             raise ValueError(msg)
 
         # Build filters
         filter_conditions = [
-            build_match_filter("MemberId", memberId),
-            build_match_filter("DebateSectionExtId", debateId),
+            build_match_filter("MemberId", member_id),
+            build_match_filter("DebateSectionExtId", debate_id),
             build_match_filter("House", house),
-            build_date_range_filter(dateFrom, dateTo),
+            build_date_range_filter(date_from, date_to),
         ]
 
         query_filter = build_filters(filter_conditions)
@@ -192,20 +204,20 @@ class QdrantQueryHandler:
                     models.Prefetch(
                         query=dense_query_vector,
                         using="text_dense",
-                        limit=maxResults,
+                        limit=max_results,
                         filter=query_filter,
                     ),
                     models.Prefetch(
                         query=sparse_query_vector,
                         using="text_sparse",
-                        limit=maxResults,
+                        limit=max_results,
                         filter=query_filter,
                     ),
                 ],
                 query=models.FusionQuery(
                     fusion=models.Fusion.RRF,
                 ),
-                limit=maxResults,
+                limit=max_results,
                 score_threshold=min_score,
                 with_payload=True,
             )
@@ -214,7 +226,7 @@ class QdrantQueryHandler:
             query_response = await self.qdrant_client.query_points(
                 collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
                 query_filter=query_filter,
-                limit=maxResults,
+                limit=max_results,
                 with_payload=True,
             )
 
@@ -346,8 +358,8 @@ class QdrantQueryHandler:
     async def search_parliamentary_questions(
         self,
         query: str | None = None,
-        dateFrom: str | None = None,  # noqa: N803
-        dateTo: str | None = None,  # noqa: N803
+        date_from: str | None = None,
+        date_to: str | None = None,
         party: str | None = None,
         asking_member_id: int | None = None,
         answering_body_name: str | None = None,
@@ -359,8 +371,8 @@ class QdrantQueryHandler:
 
         Args:
             query: Text to search for in parliamentary questions
-            dateFrom: Start date in format 'YYYY-MM-DD' (optional)
-            dateTo: End date in format 'YYYY-MM-DD' (optional)
+            date_from: Start date in format 'YYYY-MM-DD' (optional)
+            date_to: End date in format 'YYYY-MM-DD' (optional)
             party: Filter by party (optional)
             asking_member_id: Filter by member id (optional)
             answering_body_name: Filter by answering body name (optional)
@@ -369,7 +381,7 @@ class QdrantQueryHandler:
         """
         # Build filters
         filter_conditions = [
-            build_date_range_filter(dateFrom, dateTo, "dateTabled"),
+            build_date_range_filter(date_from, date_to, "dateTabled"),
             build_match_filter("askingMember.party", party),
             build_match_filter("askingMember.id", asking_member_id),
         ]
@@ -387,7 +399,7 @@ class QdrantQueryHandler:
             sparse_query_vector = self.embed_query_sparse(query)
 
             # Perform vector search
-            query_response = await self.qdrant_client.query_points(
+            query_response = await self.qdrant_client.query_points_groups(
                 collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
                 prefetch=[
                     models.Prefetch(
@@ -409,53 +421,49 @@ class QdrantQueryHandler:
                 limit=max_results,
                 score_threshold=min_score,
                 with_payload=True,
+                group_by="id",
+                group_size=10,
             )
         else:
             # If no query, use scroll to get results with filters only
-            query_response = await self.qdrant_client.query_points(
+            query_response = await self.qdrant_client.query_points_groups(
                 collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
                 query_filter=query_filter,
                 limit=max_results,
                 with_payload=True,
+                group_by="id",
+                group_size=100,
             )
 
         results = []
-        for result in query_response.points:
-            payload = result.payload
+        for group in query_response.groups:
+            # For PQs, question and answer chunks are stored as separate chunks, so we have to piece them together
 
-            def safe_get_text(field_value: Any) -> str:
-                if isinstance(field_value, dict):
-                    return field_value.get("text", "")
-                return str(field_value) if field_value is not None else ""
+            payloads = [hit.payload for hit in group.hits]
+            answer_chunks = [(hit["chunk_id"], hit["text"]) for hit in payloads if hit["chunk_type"] == "answer"]
+            question_chunks = [(hit["chunk_id"], hit["text"]) for hit in payloads if hit["chunk_type"] == "question"]
 
-            def parse_date(date_str: str | None) -> str | None:
-                if not date_str:
-                    return None
-                try:
-                    return datetime.fromisoformat(date_str).isoformat()
-                except (ValueError, TypeError):
-                    return None
+            answer_text = "\n".join([text for _, text in sorted(answer_chunks)])
+            question_text = "\n".join([text for _, text in sorted(question_chunks)])
 
-            # Extract data from payload - now always full documents
-            question_text = safe_get_text(payload.get("questionText"))
-            answer_text = safe_get_text(payload.get("answerText"))
+            # use the latest created_at payload
+            payload = max(payloads, key=lambda x: x.get("created_at"))
+
+            uin = payload.get("uin")
+            tabled_date = parse_date(payload.get("dateTabled"))
 
             results.append(
                 {
-                    "uin": safe_get_text(payload.get("uin")),
-                    "score": result.score if hasattr(result, "score") else 1.0,
-                    "questionText": question_text,
-                    "answerText": answer_text,
+                    "question_text": question_text,
+                    "answer_text": answer_text,
+                    "chunk_type": payload.get("chunk_type"),
                     "askingMember": payload.get("askingMember"),
                     "answeringMember": payload.get("answeringMember"),
                     "dateTabled": parse_date(payload.get("dateTabled")),
                     "dateAnswered": parse_date(payload.get("dateAnswered")),
                     "answeringBodyName": payload.get("answeringBodyName"),
+                    "question_url": f"https://questions-statements.parliament.uk/written-questions/detail/{tabled_date}/{uin}",
                 }
             )
-
-        # Sort by relevance score if we have a query
-        if query:
-            results.sort(key=lambda x: x["score"], reverse=True)
 
         return results

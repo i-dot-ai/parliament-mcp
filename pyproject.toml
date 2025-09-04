@@ -44,6 +44,8 @@ dependencies = [
     "fastembed>=0.7.1",
     "tenacity>=9.1.2",
     "boto3>=1.39.12",
+    "markdownify>=1.2.0",
+    "markitdown[docx,pdf,xlsx]>=0.1.3",
 ]
 
 [project.scripts]
@@ -143,7 +145,8 @@ known-first-party = ["parliament_mcp"]
 "tests/*" = ["S101", "S104", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003", "S311"]
 "*/tests/*" = ["S101", "S106", "PLR0913", "PLR0915", "PLR2004", "TD003"]
 # API files need to match external API parameter names
-"parliament_mcp/mcp_server/api.py" = ["N803", "A002", "E501", "N806"]  # Allow non-snake_case args, shadowing builtins, long lines, and non lowercase variables
+"parliament_mcp/mcp_server/api.py" = ["E501"]  # Allow long lines in API files
+"parliament_mcp/mcp_server/members.py" = ["N803", "A002", "E501", "N806"]  # Allow non-snake_case args, shadowing builtins, long lines, and non lowercase variables
 "parliament_mcp/mcp_server/handlers.py" = ["N803", "A001"]  # Allow non-snake_case args and shadowing builtins
 "parliament_mcp/mcp_server/main.py" = ["ARG001"]  # Allow unused args in FastAPI lifespan
 "parliament_mcp/models.py" = ["N815", "FURB162"]  # Allow mixedCase, timezone handling

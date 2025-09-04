@@ -14,19 +14,28 @@ This project provides:
 
 ### MCP Tools Available
 
-The MCP Server exposes 11 tools to assist in parliamentary research:
+The MCP Server exposes 13 tools to assist in parliamentary research:
 
-1. **`search_constituency`** - Search for constituencies by name or get comprehensive constituency details by ID
-2. **`get_election_results`** - Get election results for constituencies or specific members
-3. **`search_members`** - Search for members of the Commons or Lords by various criteria
-4. **`get_detailed_member_information`** - Get comprehensive member information including biography, contact, interests, and voting record
-5. **`get_state_of_the_parties`** - Get state of the parties for a house on a specific date
-6. **`get_government_posts`** - Get exhaustive list of all government posts and their current holders
-7. **`get_opposition_posts`** - Get exhaustive list of all opposition posts and their current holders
-8. **`get_departments`** - Get reference data for government departments
-9. **`search_parliamentary_questions`** - Search Parliamentary Written Questions (PQs) by topic, date, party, or member
-10. **`search_debates`** - Search through debate titles to find relevant debates
-11. **`search_contributions`** - Search Hansard parliamentary records for actual spoken contributions during debates
+#### Members & Elections
+1. **`get_election_results`** - Get election results for constituencies or specific members
+2. **`search_members`** - Search for members of the Commons or Lords by various criteria (includes location/postcode search)
+3. **`get_detailed_member_information`** - Get comprehensive member information including biography, contact, interests, voting record, and committee membership
+
+#### Parliamentary Structure
+4. **`get_state_of_the_parties`** - Get state of the parties for a house on a specific date
+5. **`list_ministerial_roles`** - Get exhaustive list of all government or opposition posts and their current holders
+6. **`get_departments`** - Get reference data for government departments
+
+#### Committees
+7. **`list_all_committees`** - List all parliamentary committees by status and house
+8. **`get_committee_details`** - Get comprehensive committee information including members, publications, evidence, and upcoming events
+9. **`get_committee_document`** - Retrieve committee documents including oral evidence, written evidence, and publications
+
+#### Parliamentary Business
+10. **`search_parliamentary_questions`** - Search Parliamentary Written Questions (PQs) by topic, date, party, or member
+11. **`search_debate_titles`** - Search through debate titles to find relevant debates
+12. **`find_relevant_contributors`** - Find members who have contributed most on specific topics
+13. **`search_contributions`** - Search Hansard parliamentary records for actual spoken contributions during debates
 
 ## Quick Start (local qdrant)
 
@@ -201,9 +210,10 @@ parliament-mcp/
 │   ├── cli.py               # CLI interface
 │   ├── models.py            # Data models
 │   ├── mcp_server/          # MCP server implementation
-│   │   ├── api.py           # API endpoints and tool definitions
-│   │   ├── handlers.py      # Query handlers
-│   │   ├── qdrant_handlers.py # Qdrant-specific handlers
+│   │   ├── api.py           # Core API endpoints and search tools
+│   │   ├── committees.py    # Committee-related tools and handlers
+│   │   ├── members.py       # Member-related tools and handlers
+│   │   ├── qdrant_query_handler.py # Qdrant search handlers
 │   │   ├── main.py          # FastAPI application setup
 │   │   └── utils.py         # Utility functions
 │   └── ...                  # Other modules
@@ -364,6 +374,12 @@ Once connected to Claude, you can use natural language queries like:
 - "Show me the current government ministers"
 - "Get the state of the parties in the House of Commons"
 - "List all opposition shadow cabinet positions"
+
+**Committees:**
+- "List all current Commons select committees"
+- "Get details about the Public Accounts Committee including members and recent publications"
+- "Show me oral evidence from the Treasury Committee"
+- "Find committees dealing with environmental issues"
 
 **General Queries:**
 - "Search for debates about artificial intelligence regulation"
