@@ -63,6 +63,8 @@ async def search_parliamentary_questions(
     """
     Search Parliamentary Written Questions (sometimes known as PQs)
 
+    With no query provided, this function will return the most recent written questions matching the other filters.
+
     Written questions allow MPs and Members of the House of Lords to ask for information on the work, policy and activities of Government departments, related bodies, and the administration of Parliament.
 
     Common use case for this function:
@@ -198,6 +200,8 @@ async def search_contributions(
     """
     Search Hansard parliamentary records for contributions using searching within the actual spoken words
     A contribution is something a member said in the houses of parliament during a debate.
+
+    With no query provided, this function will return the most recent contributions matching the other filters.
 
     Common use cases:
     - Search what was actually said: Use query="climate change" to find mentions in speeches
