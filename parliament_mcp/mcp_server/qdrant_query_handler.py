@@ -364,7 +364,7 @@ class QdrantQueryHandler:
         asking_member_id: int | None = None,
         answering_body_name: str | None = None,
         min_score: float = 0,
-        max_results: int = 100,
+        max_results: int = 25,
     ) -> list[dict]:
         """
         Search Parliamentary Questions using Qdrant vector search.
@@ -377,7 +377,7 @@ class QdrantQueryHandler:
             asking_member_id: Filter by member id (optional)
             answering_body_name: Filter by answering body name (optional)
             min_score: Minimum relevance score (default 0)
-            max_results: Maximum number of results to return (default 100)
+            max_results: Maximum number of results to return (default 25)
         """
         # Build filters
         filter_conditions = [

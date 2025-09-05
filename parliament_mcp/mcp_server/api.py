@@ -58,6 +58,7 @@ async def search_parliamentary_questions(
         None,
         description="Answering body name (e.g. 'Department for Transport, Cabinet Office, etc.)",
     ),
+    max_results: int = Field(25, description="Max results, default 25"),
 ) -> Any:
     """
     Search Parliamentary Written Questions (sometimes known as PQs)
@@ -81,6 +82,7 @@ async def search_parliamentary_questions(
         party=party,
         asking_member_id=asking_member_id,
         answering_body_name=answering_body_name,
+        max_results=max_results,
     )
 
     if not result:
