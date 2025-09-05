@@ -248,6 +248,13 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         wait=False,
     )
 
+    await client.create_payload_index(
+        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+        field_name="created_at",
+        field_schema=models.DatetimeIndexParams(type=models.DatetimeIndexType.DATETIME),
+        wait=True,
+    )
+
     # Hansard Contributions
 
     await client.create_payload_index(

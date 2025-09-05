@@ -175,12 +175,6 @@ class QdrantQueryHandler:
         Raises:
             ValueError: If no search parameters are provided
         """
-        # Fail if none of the parameters are provided
-        if not query and not member_id and not date_from and not date_to and not debate_id and not house:
-            msg = (
-                "At least one of 'query', 'member_id', 'date_from', 'date_to', 'debate_id' or 'house' must be provided"
-            )
-            raise ValueError(msg)
 
         # Build filters
         filter_conditions = [
@@ -221,17 +215,24 @@ class QdrantQueryHandler:
                 score_threshold=min_score,
                 with_payload=True,
             )
+
+            query_response = query_response.points
         else:
             # If no query, use scroll to get results with filters only
-            query_response = await self.qdrant_client.query_points(
+            query_response, offset = await self.qdrant_client.scroll(
                 collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-                query_filter=query_filter,
+                scroll_filter=query_filter,
                 limit=max_results,
                 with_payload=True,
+                with_vectors=False,
+                order_by={
+                    "key": "SittingDate",
+                    "direction": "desc",
+                },
             )
 
         results = []
-        for result in query_response.points:
+        for result in query_response:
             payload = result.payload
             results.append(
                 {
@@ -364,7 +365,7 @@ class QdrantQueryHandler:
         asking_member_id: int | None = None,
         answering_body_name: str | None = None,
         min_score: float = 0,
-        max_results: int = 100,
+        max_results: int = 25,
     ) -> list[dict]:
         """
         Search Parliamentary Questions using Qdrant vector search.
@@ -377,7 +378,7 @@ class QdrantQueryHandler:
             asking_member_id: Filter by member id (optional)
             answering_body_name: Filter by answering body name (optional)
             min_score: Minimum relevance score (default 0)
-            max_results: Maximum number of results to return (default 100)
+            max_results: Maximum number of results to return (default 25)
         """
         # Build filters
         filter_conditions = [
@@ -393,13 +394,14 @@ class QdrantQueryHandler:
 
         query_filter = build_filters(filter_conditions)
 
+        # First find the ID of any questions with any relevant chunks
         if query:
             # Generate embedding for search query
             dense_query_vector = await self.embed_query_dense(query)
             sparse_query_vector = self.embed_query_sparse(query)
 
             # Perform vector search
-            query_response = await self.qdrant_client.query_points_groups(
+            query_response = await self.qdrant_client.query_points(
                 collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
                 prefetch=[
                     models.Prefetch(
@@ -421,19 +423,39 @@ class QdrantQueryHandler:
                 limit=max_results,
                 score_threshold=min_score,
                 with_payload=True,
-                group_by="id",
-                group_size=10,
             )
+
+            relevant_questions_ids = [hit.payload["id"] for hit in query_response.points]
+
         else:
             # If no query, use scroll to get results with filters only
-            query_response = await self.qdrant_client.query_points_groups(
+            query_response, offset = await self.qdrant_client.scroll(
                 collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
-                query_filter=query_filter,
+                scroll_filter=query_filter,
                 limit=max_results,
                 with_payload=True,
-                group_by="id",
-                group_size=100,
+                order_by={
+                    "key": "created_at",
+                    "direction": "desc",
+                },
             )
+
+            relevant_questions_ids = [record.payload["id"] for record in query_response]
+
+        # Then get the full details of the questions
+        query_response = await self.qdrant_client.query_points_groups(
+            collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
+            query_filter=Filter(
+                must=[
+                    models.FieldCondition(key="id", match=models.MatchAny(any=relevant_questions_ids)),
+                ]
+            ),
+            limit=max_results,
+            with_payload=True,
+            with_vectors=False,
+            group_by="id",
+            group_size=100,
+        )
 
         results = []
         for group in query_response.groups:
@@ -453,17 +475,21 @@ class QdrantQueryHandler:
             tabled_date = parse_date(payload.get("dateTabled"))
 
             results.append(
-                {
-                    "question_text": question_text,
-                    "answer_text": answer_text,
-                    "chunk_type": payload.get("chunk_type"),
-                    "askingMember": payload.get("askingMember"),
-                    "answeringMember": payload.get("answeringMember"),
-                    "dateTabled": parse_date(payload.get("dateTabled")),
-                    "dateAnswered": parse_date(payload.get("dateAnswered")),
-                    "answeringBodyName": payload.get("answeringBodyName"),
-                    "question_url": f"https://questions-statements.parliament.uk/written-questions/detail/{tabled_date}/{uin}",
-                }
+                (
+                    payload.get("created_at"),
+                    {
+                        "question_text": question_text,
+                        "answer_text": answer_text,
+                        "chunk_type": payload.get("chunk_type"),
+                        "askingMember": payload.get("askingMember"),
+                        "answeringMember": payload.get("answeringMember"),
+                        "dateTabled": parse_date(payload.get("dateTabled")),
+                        "dateAnswered": parse_date(payload.get("dateAnswered")),
+                        "answeringBodyName": payload.get("answeringBodyName"),
+                        "question_url": f"https://questions-statements.parliament.uk/written-questions/detail/{tabled_date}/{uin}",
+                        "created_at": payload.get("created_at"),
+                    },
+                )
             )
-
-        return results
+        # return the most recently updated question
+        return [result for _, result in sorted(results, key=lambda x: x[0], reverse=True)]
