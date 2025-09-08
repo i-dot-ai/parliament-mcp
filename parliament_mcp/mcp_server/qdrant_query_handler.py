@@ -442,6 +442,9 @@ class QdrantQueryHandler:
 
             relevant_questions_ids = [record.payload["id"] for record in query_response]
 
+        if len(relevant_questions_ids) == 0:
+            return []
+
         # Then get the full details of the questions
         query_response = await self.qdrant_client.query_points_groups(
             collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
