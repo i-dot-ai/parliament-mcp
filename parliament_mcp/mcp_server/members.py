@@ -52,7 +52,7 @@ async def get_election_results(
         raise ValueError(msg)
 
 
-# @log_tool_call
+@log_tool_call
 async def search_members(
     Name: str | None = Field(None, description="Member name"),
     PartyId: int | None = Field(None, description="Party ID"),
