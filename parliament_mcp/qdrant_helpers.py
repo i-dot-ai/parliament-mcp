@@ -182,7 +182,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -191,7 +191,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -200,7 +200,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -209,7 +209,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.IntegerIndexParams(
             type=models.IntegerIndexType.INTEGER,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -218,7 +218,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -234,7 +234,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
             stopwords="english",
             stemmer=models.SnowballParams(type=models.Snowball.SNOWBALL, language=models.SnowballLanguage.ENGLISH),
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -245,13 +245,6 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
             lookup=True,
             range=True,
         ),
-        wait=False,
-    )
-
-    await client.create_payload_index(
-        collection_name=settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
-        field_name="created_at",
-        field_schema=models.DatetimeIndexParams(type=models.DatetimeIndexType.DATETIME),
         wait=True,
     )
 
@@ -263,7 +256,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.DatetimeIndexParams(
             type=models.DatetimeIndexType.DATETIME,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -272,7 +265,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -283,7 +276,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
             lookup=True,
             range=True,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -292,7 +285,7 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         field_schema=models.KeywordIndexParams(
             type=models.KeywordIndexType.KEYWORD,
         ),
-        wait=False,
+        wait=True,
     )
 
     await client.create_payload_index(
@@ -308,5 +301,5 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
             stopwords="english",
             stemmer=models.SnowballParams(type=models.Snowball.SNOWBALL, language=models.SnowballLanguage.ENGLISH),
         ),
-        wait=False,
+        wait=True,
     )

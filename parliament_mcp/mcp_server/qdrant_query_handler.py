@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Literal
 
@@ -51,6 +52,46 @@ def build_filters(conditions: list[FieldCondition | None]) -> Filter | None:
         return None
 
     return Filter(must=valid_conditions)
+
+
+class DebateCollection:
+    """Collection of debates and their contributions.
+    Used to track the contributions for each debate and return the substantial debates.
+    """
+
+    def __init__(self):
+        self._debates = defaultdict(lambda: {"contribution_ids": set(), "info": None})
+
+    def add_contribution(self, contribution):
+        debate_id = contribution.get("DebateSectionExtId")
+        contribution_id = contribution.get("ContributionExtId")
+        debate = self._debates[debate_id]
+        new_data = contribution_id not in debate["contribution_ids"]
+        debate["contribution_ids"].add(contribution_id)
+        if debate["info"] is None:
+            debate["info"] = {
+                "debate_id": debate_id,
+                "title": contribution.get("DebateSection"),
+                "date": contribution.get("SittingDate"),
+                "house": contribution.get("House"),
+                "debate_parents": contribution.get("debate_parents", []),
+                "debate_url": contribution.get("debate_url"),
+            }
+        return new_data
+
+    def get_substantial_debates(self):
+        return [
+            debate["info"]
+            for debate in self._debates.values()
+            if len(debate["contribution_ids"]) >= MINIMUM_DEBATE_HITS
+        ]
+
+    def get_substantial_debate_ids(self):
+        return [
+            debate_id
+            for debate_id, debate in self._debates.items()
+            if len(debate["contribution_ids"]) >= MINIMUM_DEBATE_HITS
+        ]
 
 
 class QdrantQueryHandler:
@@ -116,34 +157,34 @@ class QdrantQueryHandler:
 
         query_filter = build_filters(filter_conditions)
 
-        query_response = await self.qdrant_client.query_points_groups(
-            collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
-            query_filter=query_filter,
-            limit=max_results,
-            with_payload=True,
-            group_by="DebateSectionExtId",
-            group_size=MINIMUM_DEBATE_HITS,
-        )
+        debates = DebateCollection()
 
-        results = []
-        for group in query_response.groups:
-            first_hit = group.hits[0].payload
-            # If there are less than 2 hits, the debate is not relevant
-            if len(group.hits) < MINIMUM_DEBATE_HITS:
-                continue
+        while len(substantial_ids := debates.get_substantial_debate_ids()) < max_results:
+            # Filter out already found substantial debates
+            if substantial_ids:
+                query_filter.must_not = [
+                    FieldCondition(key="DebateSectionExtId", match=models.MatchAny(any=substantial_ids)),
+                ]
 
-            debate = {
-                "debate_id": first_hit.get("DebateSectionExtId"),
-                "title": first_hit.get("DebateSection"),
-                "date": first_hit.get("SittingDate"),
-                "house": first_hit.get("House"),
-                "debate_parents": first_hit.get("debate_parents", []),
-                "debate_url": first_hit.get("debate_url"),
-            }
+            contributions, _ = await self.qdrant_client.scroll(
+                collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+                scroll_filter=query_filter,
+                limit=1000,
+                with_payload=True,
+                order_by={"key": "SittingDate", "direction": "desc"},
+            )
 
-            results.append(debate)
+            if not contributions:
+                break
 
-        return results
+            new_data_available = False
+            for result in contributions:
+                new_data_available |= debates.add_contribution(result.payload)
+
+            if not new_data_available:
+                break
+
+        return debates.get_substantial_debates()[:max_results]
 
     async def search_hansard_contributions(
         self,
@@ -219,7 +260,7 @@ class QdrantQueryHandler:
             query_response = query_response.points
         else:
             # If no query, use scroll to get results with filters only
-            query_response, offset = await self.qdrant_client.scroll(
+            query_response, _ = await self.qdrant_client.scroll(
                 collection_name=self.settings.HANSARD_CONTRIBUTIONS_COLLECTION,
                 scroll_filter=query_filter,
                 limit=max_results,
@@ -429,13 +470,13 @@ class QdrantQueryHandler:
 
         else:
             # If no query, use scroll to get results with filters only
-            query_response, offset = await self.qdrant_client.scroll(
+            query_response, _ = await self.qdrant_client.scroll(
                 collection_name=self.settings.PARLIAMENTARY_QUESTIONS_COLLECTION,
                 scroll_filter=query_filter,
                 limit=max_results,
                 with_payload=True,
                 order_by={
-                    "key": "created_at",
+                    "key": "id",
                     "direction": "desc",
                 },
             )
