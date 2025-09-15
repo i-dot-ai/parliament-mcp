@@ -107,15 +107,14 @@ async def search_debate_titles(
     Only returns the debate ID, title, and date, not the content of the debate.
     Useful for finding relevant debates, but must be used in conjunction with search_contributions to get the full text of the debate.
 
-    Either query or date range (or both) must be provided. House is optional.
-    If only date_from is provided, returns debates from that date onwards.
-    If only date_to is provided, returns debates up to and including that date.
+    Use date_from and date_to to search for debates in a specific date range.
+    Use query to search for debates with a keyword or phrase in the title.
 
-    Returns a list of debate details (ID, title, date) ranked by relevancy.
+    Returns a list of debate details (ID, title, date) in order the most recent first.
 
     Common use case for this function:
-    - Provide a query to search for debates on a specific topic for all time
-    - Provide the date for date_from and date_to to search for all debates on a specific date
+    - Provide a query to search for debates on a specific topic
+    - Provide the date for date_from and date_to to search for debates within a specific date range
     - Provide a query and date range to search for debates on a specific topic in a specific date range
 
     Args:

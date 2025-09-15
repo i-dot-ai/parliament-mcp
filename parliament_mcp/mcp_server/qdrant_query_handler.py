@@ -123,7 +123,7 @@ class QdrantQueryHandler:
         date_from: str | None = None,
         date_to: str | None = None,
         house: str | None = None,
-        max_results: int = 100,
+        max_results: int = 50,
     ) -> list[dict]:
         """
         Search debate titles with optional filters.
