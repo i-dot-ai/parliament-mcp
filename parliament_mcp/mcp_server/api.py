@@ -96,7 +96,7 @@ async def search_parliamentary_questions(
 @mcp_server.tool("search_debate_titles")
 @log_tool_call
 async def search_debate_titles(
-    query: str = Field(..., description="Query used to search debate titles"),
+    query: str | None = Field(None, description="Query used to search debate titles"),
     date_from: str | None = Field(None, description="Date from (YYYY-MM-DD)"),
     date_to: str | None = Field(None, description="Date to (YYYY-MM-DD)"),
     house: Literal["Commons", "Lords"] | None = Field(None, description="House (Commons|Lords)"),
