@@ -359,7 +359,7 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         """Load questions filtered by specific date type."""
 
         base_params = {
-            "expandMember": "true",
+            "expandMember": True,
             f"{date_type}WhenFrom": from_date,
             f"{date_type}WhenTo": to_date,
         }
@@ -419,7 +419,7 @@ class QdrantParliamentaryQuestionLoader(QdrantDataLoader):
         """Fetch full question content when truncated."""
         try:
             url = f"{PQS_BASE_URL}/writtenquestions/questions/{question.id}"
-            response = await cached_limited_get(url)
+            response = await cached_limited_get(url, params={"expandMember": True})
             response.raise_for_status()
             full_question_data = response.json()
             return ParliamentaryQuestion.model_validate(full_question_data["value"])
