@@ -38,7 +38,6 @@ def get_environment_or_ssm(env_var_name: str, ssm_path: str | None = None, defau
 class ParliamentMCPSettings(BaseSettings):
     """Configuration settings for Parliament MCP application with environment-based loading."""
 
-    APP_NAME: str
     AWS_ACCOUNT_ID: str | None = None
     AWS_REGION: str = "eu-west-2"
     ENVIRONMENT: str = "local"
