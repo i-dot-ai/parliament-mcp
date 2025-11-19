@@ -303,3 +303,12 @@ async def create_collection_indicies(client: AsyncQdrantClient, settings: Parlia
         ),
         wait=True,
     )
+
+    await client.create_payload_index(
+        collection_name=settings.HANSARD_CONTRIBUTIONS_COLLECTION,
+        field_name="debate_parents[].ExternalId",
+        field_schema=models.KeywordIndexParams(
+            type=models.KeywordIndexType.KEYWORD,
+        ),
+        wait=True,
+    )
