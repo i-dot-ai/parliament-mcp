@@ -36,9 +36,10 @@ module "qdrant" {
   memory = 16384
   cpu    = 4096
 
-  desired_app_count          = 1
-  autoscaling_minimum_target = 1
-  autoscaling_maximum_target = 1
+  # Scaled to zero - using hosted Qdrant Cloud instead
+  desired_app_count          = 0
+  autoscaling_minimum_target = 0
+  autoscaling_maximum_target = 0
 
   environment_variables = {
     "QDRANT__LOG_LEVEL" = terraform.workspace == "prod" ? "warn" : "info"

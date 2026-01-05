@@ -40,9 +40,7 @@ module "backend" {
     "AWS_ACCOUNT_ID": data.aws_caller_identity.current.account_id,
     "DOCKER_BUILDER_CONTAINER": "parliament-mcp",
     "AUTH_PROVIDER_PUBLIC_KEY": data.aws_ssm_parameter.auth_provider_public_key.value,
-    # Qdrant connection via ALB hostname
-    "QDRANT_HOST": local.host_qdrant,
-    "QDRANT_PORT": "6333",
+    # Qdrant connection is via QDRANT_URL and QDRANT_API_KEY from SSM (hosted Qdrant Cloud)
   }
 
   secrets = [
@@ -53,6 +51,12 @@ module "backend" {
   ]
 
   container_port             = local.backend_port
+  # Limit to single instance to avoid session affinity issues with MCP
+  # (MCP sessions are stored in-memory, so horizontal scaling breaks session continuity)
+  desired_app_count          = 1
+  autoscaling_minimum_target = 1
+  autoscaling_maximum_target = 1
+
   health_check = {
     accepted_response   = 200
     path                = "/healthcheck"
