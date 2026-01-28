@@ -44,6 +44,8 @@ module "backend" {
     "DOCKER_BUILDER_CONTAINER": "parliament-mcp",
     "AUTH_PROVIDER_PUBLIC_KEY": data.aws_ssm_parameter.auth_provider_public_key.value,
     # Qdrant connection is via QDRANT_URL and QDRANT_API_KEY from SSM (hosted Qdrant Cloud)
+    # MCP allowed hosts for DNS rebinding protection
+    "MCP_ALLOWED_HOSTS": "localhost,127.0.0.1,${local.host_backend}"
   }
 
   secrets = [
