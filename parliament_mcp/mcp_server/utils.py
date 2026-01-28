@@ -141,7 +141,7 @@ async def request_members_api(
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "Parlex MCP",
+                "User-Agent": "parliament-mcp",
             },
             params=params,
         )
@@ -174,7 +174,7 @@ async def request_committees_api(
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "Parlex MCP",
+                "User-Agent": "parliament-mcp",
             },
             params=params,
         )

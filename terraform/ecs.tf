@@ -27,6 +27,9 @@ module "backend" {
   target_group_name_override   =  "parliament-mcp-be-${var.env}-tg"
   permissions_boundary_name    = "infra/i-dot-ai-${var.env}-parliament-mcp-perms-boundary-app"
 
+  # Resource allocation - increased from defaults (256/512) for embedding model overhead
+  memory = 2048
+  cpu    = 512
 
   create_networking = true
   create_listener   = true
