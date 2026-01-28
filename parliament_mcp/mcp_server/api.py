@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 import sentry_sdk
 from mcp.server.fastmcp.server import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 
 from parliament_mcp.mcp_server.members import register_members_tools
@@ -32,7 +33,15 @@ async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
         }
 
 
-mcp_server = FastMCP(name="Parliament MCP Server", stateless_http=False, lifespan=mcp_lifespan)
+mcp_server = FastMCP(
+    name="Parliament MCP Server",
+    stateless_http=False,
+    lifespan=mcp_lifespan,
+    # Configure transport security with allowed hosts from settings
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=[h.strip() for h in settings.MCP_ALLOWED_HOSTS.split(",") if h.strip()],
+    ),
+)
 
 register_committee_tools(mcp_server)
 register_members_tools(mcp_server)

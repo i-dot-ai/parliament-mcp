@@ -116,6 +116,10 @@ class ParliamentMCPSettings(BaseSettings):
     # The MCP server can be accessed at /{MCP_ROOT_PATH}/mcp
     MCP_ROOT_PATH: str = "/"
 
+    # Allowed hosts for MCP transport security (comma-separated)
+    # Used to prevent DNS rebinding attacks
+    MCP_ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+
     # Rate limiting settings for parliament.uk API.
     HTTP_MAX_RATE_PER_SECOND: float = 10
 
