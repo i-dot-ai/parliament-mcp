@@ -33,7 +33,7 @@ dependencies = [
     "async-lru>=2.0.5",
     "pydantic-settings>=2.10.0",
     "dateparser>=1.2.1",
-    "pyjwt>=2.9.0",
+    "pyjwt==2.12.0",
     "cryptography>=44.0.1",
     "aiolimiter>=1.2.1",
     "sentry-sdk>=2.18.0",
