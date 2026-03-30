@@ -210,7 +210,8 @@ async def request_bills_api(
             params=params,
         )
         response.raise_for_status()
-        return recursive_remove_null_values(response.json())
+        result = recursive_remove_null_values(response.json())
+        return remap_values(result)
     except Exception:
         logger.exception("Exception in request_bills_api: %s, %s", url, params)
         raise

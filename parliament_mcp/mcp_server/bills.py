@@ -4,7 +4,7 @@ from typing import Any, Literal
 from mcp.server.fastmcp.server import FastMCP
 from pydantic import Field
 
-from .utils import log_tool_call, request_bills_api, sanitize_params
+from .utils import log_tool_call, recursive_remove_null_values, request_bills_api, sanitize_params
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +51,18 @@ def clean_bill(bill: dict) -> dict:
     sponsors = bill.get("sponsors", [])
     if sponsors:
         result["sponsors"] = [
-            {
-                "name": s["member"]["name"],
-                "party": s["member"].get("party"),
-                "memberFrom": s["member"].get("memberFrom"),
-            }
+            recursive_remove_null_values(
+                {
+                    "name": s["member"]["name"],
+                    "party": s["member"].get("party"),
+                    "memberFrom": s["member"].get("memberFrom"),
+                }
+            )
             for s in sponsors
             if s.get("member")
         ]
 
-    return result
+    return recursive_remove_null_values(result)
 
 
 @log_tool_call
