@@ -23,11 +23,18 @@ module "waf" {
   header_secured_access_configuration = {
     kms_key_id = data.terraform_remote_state.platform.outputs.kms_key_arn
     hostname = local.host_backend
-    client_configs = [
-      {
-        client_name = "iai_devs",
-      },
-    ]
+    client_configs = concat(
+      [
+        {
+          client_name = "iai_devs",
+        },
+      ],
+      var.env == "preprod" ? [
+        {
+          client_name = "perm_sec"
+        }
+      ] : []
+    )
   }
 }
 
