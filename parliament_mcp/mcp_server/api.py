@@ -14,6 +14,7 @@ from parliament_mcp.openai_helpers import get_openai_client
 from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
+from .bills import register_bills_tools
 from .committees import register_committee_tools
 from .utils import log_tool_call
 
@@ -43,6 +44,7 @@ mcp_server = FastMCP(
     ),
 )
 
+register_bills_tools(mcp_server)
 register_committee_tools(mcp_server)
 register_members_tools(mcp_server)
 

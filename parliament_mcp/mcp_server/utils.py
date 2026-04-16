@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 MEMBERS_API_BASE_URL = "https://members-api.parliament.uk"
 COMMITTEES_API_BASE_URL = "https://committees-api.parliament.uk"
+BILLS_API_BASE_URL = "https://bills-api.parliament.uk"
 
 
 def sanitize_params(**kwargs):
@@ -188,6 +189,31 @@ async def request_committees_api(
         return remap_values(result)
     except Exception:
         logger.exception("Exception in request_committees_api: %s, %s", url, params)
+        raise
+
+
+async def request_bills_api(
+    endpoint: str,
+    params: dict[str, Any] | None = None,
+) -> Any:
+    """Make a request to the Bills API and return JSON response"""
+    url = f"{BILLS_API_BASE_URL}{endpoint}"
+    logger.info("Requesting bills API: %s, %s", url, params)
+
+    try:
+        response = await cached_limited_get(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "parliament-mcp",
+            },
+            params=params,
+        )
+        response.raise_for_status()
+        result = recursive_remove_null_values(response.json())
+        return remap_values(result)
+    except Exception:
+        logger.exception("Exception in request_bills_api: %s, %s", url, params)
         raise
 
 
