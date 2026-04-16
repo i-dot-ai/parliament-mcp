@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 
 from parliament_mcp import __version__
 from parliament_mcp.mcp_server.api import mcp_server, settings
+from parliament_mcp.mcp_server.resources import initialize_shared_resources
+from parliament_mcp.mcp_server.rest_api import router as rest_router
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ def create_app():
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI):
-        async with contextlib.AsyncExitStack() as stack:
+        async with initialize_shared_resources(), contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(mcp_server.session_manager.run())
             cleanup_task = asyncio.create_task(session_cleanup_task(mcp_server))
             try:
@@ -100,6 +102,7 @@ def create_app():
             },
         )
 
+    app.include_router(rest_router)
     app.mount(settings.MCP_ROOT_PATH, mcp_server.streamable_http_app())
 
     return app

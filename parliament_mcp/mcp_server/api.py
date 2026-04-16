@@ -1,7 +1,7 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import sentry_sdk
 from mcp.server.fastmcp.server import FastMCP
@@ -9,28 +9,22 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 
 from parliament_mcp.mcp_server.members import register_members_tools
-from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
-from parliament_mcp.openai_helpers import get_openai_client
-from parliament_mcp.qdrant_helpers import get_async_qdrant_client
 from parliament_mcp.settings import settings
 
 from .committees import register_committee_tools
+from .resources import get_shared_resources
 from .utils import log_tool_call
+
+if TYPE_CHECKING:
+    from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def mcp_lifespan(_server: FastMCP) -> AsyncGenerator[dict]:
-    """Manage application lifecycle with type-safe context"""
-    # Initialize on startup
-
-    openai_client = get_openai_client(settings)
-    async with get_async_qdrant_client(settings) as qdrant_client:
-        yield {
-            "qdrant_query_handler": QdrantQueryHandler(qdrant_client, openai_client, settings),
-            "openai_client": openai_client,
-        }
+    """Yield the shared resources (initialized by the FastAPI lifespan)."""
+    yield get_shared_resources()
 
 
 mcp_server = FastMCP(
