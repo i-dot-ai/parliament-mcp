@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic.fields import FieldInfo
 
+from parliament_mcp.mcp_server import atr_guard
 from parliament_mcp.qdrant_data_loaders import cached_limited_get
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,12 @@ def sanitize_params(**kwargs):
 
 # Decorator for logging MCP tool calls
 def log_tool_call(func):
-    """Decorator that logs MCP tool calls with execution time and error handling."""
+    """Decorator that logs MCP tool calls with execution time and error handling.
+
+    Also runs the ATR pre-dispatch guard on string-valued kwargs. Matches are logged
+    at WARNING level but never block execution; the guard is a detect-and-tag layer,
+    not an enforcement boundary. See parliament_mcp.mcp_server.atr_guard for details.
+    """
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -42,6 +48,21 @@ def log_tool_call(func):
         str_args = json.dumps(args, default=str)
         str_kwargs = json.dumps(params, default=str)
         logger.info("Tool %s called with args: %s, kwargs: %s", func.__name__, str_args, str_kwargs)
+
+        # Run the ATR guard. Matches are advisory: we log and continue so that legitimate
+        # parliamentary research queries are never blocked by a false positive. Any
+        # unexpected guard failure must not break tool dispatch.
+        try:
+            guard_matches = atr_guard.screen_kwargs(params)
+            if guard_matches:
+                logger.warning(
+                    "ATR guard flagged tool=%s match_count=%d rule_ids=%s",
+                    func.__name__,
+                    len(guard_matches),
+                    sorted({m.rule_id for m in guard_matches}),
+                )
+        except Exception:
+            logger.exception("ATR guard internal error in tool %s; continuing without screening", func.__name__)
 
         # Record start time
         start_time = time.time()

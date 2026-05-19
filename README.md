@@ -421,6 +421,30 @@ make qdrant_health
 - Verify collections are created: `parliament-mcp init-qdrant`
 - Use the Qdrant Web UI at http://localhost:6333/dashboard to inspect collections
 
+## Security
+
+### ATR pre-dispatch guard
+
+Every MCP tool call is screened against a small bundled subset of the open
+[Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) (ATR)
+detection corpus before the handler runs. The guard targets canonical attack shapes
+that may appear in user-supplied query strings, including direct prompt injection,
+known jailbreak persona invocations, system prompt override attempts, ChatML special
+tokens, fake system delimiters, IMPORTANT-tag tool poisoning markers, indirect prompt
+injection canonical phrases, markdown image exfiltration directives, and sensitive
+credential path references.
+
+Default behaviour is log-and-tag: matches are written to the server logs at WARNING
+level but never block the tool call. Parliamentary research queries that legitimately
+mention security topics ("national security", "cyber threats", "AI policy",
+"Investigatory Powers Act", etc.) do not trigger.
+
+Set `ATR_GUARD_DISABLED=1` in the environment to turn the guard off entirely.
+
+Implementation details live in `parliament_mcp/mcp_server/atr_guard.py` and are tested
+in `tests/mcp_server/test_atr_guard.py`. The bundled rule subset has no runtime
+dependencies beyond the standard library.
+
 ## Contributing
 
 Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
