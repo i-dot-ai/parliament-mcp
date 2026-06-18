@@ -6,7 +6,15 @@ from typing import Any, Literal
 from mcp.server.fastmcp.server import FastMCP
 from pydantic import Field
 
-from .utils import clean_posts_list, log_tool_call, request_committees_api, request_members_api, sanitize_params
+from .utils import (
+    clean_posts_list,
+    extract_party_info,
+    gather_sections,
+    log_tool_call,
+    request_committees_api,
+    request_members_api,
+    sanitize_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,20 +91,21 @@ async def search_members(
         - latestParty: Latest party of the member
     """
     params = sanitize_params(**locals())
-    response = await request_members_api("/api/Members/Search", params)
+    members = await request_members_api("/api/Members/Search", params)
 
-    tasks = []
-    async with asyncio.TaskGroup() as tg:
-        for member in response:
-            tasks.append((member, tg.create_task(request_members_api(f"/api/Members/{member['id']}/Synopsis"))))
+    # Synopsis is decorative enrichment, so a failed one shouldn't sink the search.
+    synopses = await asyncio.gather(
+        *(request_members_api(f"/api/Members/{member['id']}/Synopsis") for member in members),
+        return_exceptions=True,
+    )
+    for member, synopsis in zip(members, synopses, strict=True):
+        if isinstance(synopsis, BaseException):
+            logger.warning("Synopsis for member %s failed: %s", member["id"], synopsis)
+            member["synopsis"] = ""
+        else:
+            member["synopsis"] = remove_tags(synopsis)
 
-    results = []
-    for member, task in tasks:
-        synopsis = task.result()
-        member["synopsis"] = remove_tags(synopsis)
-        results.append(member)
-
-    return results
+    return members
 
 
 @log_tool_call
@@ -130,46 +139,30 @@ async def get_detailed_member_information(
         include_voting_record: Whether to include member voting record
     """
 
-    tasks = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["member"] = tg.create_task(request_members_api(f"/api/Members/{member_id}"))
-        if include_synopsis:
-            tasks["synopsis"] = tg.create_task(request_members_api(f"/api/Members/{member_id}/Synopsis"))
-        if include_biography:
-            tasks["biography"] = tg.create_task(request_members_api(f"/api/Members/{member_id}/Biography"))
-        if include_contact:
-            tasks["contact"] = tg.create_task(
-                request_members_api(
-                    f"/api/Members/{member_id}/Contact",
-                    remove_null_values=True,
-                )
-            )
-        if include_registered_interests:
-            tasks["registered_interests"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/RegisteredInterests")
-            )
+    # The member record anchors the result (and provides the house for the voting
+    # lookup), so fetch it up front and let a genuine failure surface.
+    member = await request_members_api(f"/api/Members/{member_id}")
 
-        if include_committee_membership:
+    async def get_member_committees():
+        result = await request_committees_api("/api/Members", params={"Members": [member_id]})
+        return result[0]["committees"]
 
-            async def get_member_committees():
-                result = await request_committees_api("/api/Members", params={"Members": [member_id]})
-                return result[0]["committees"]
-
-            tasks["committee_membership"] = tg.create_task(get_member_committees())
-
+    sections = {}
+    if include_synopsis:
+        sections["synopsis"] = request_members_api(f"/api/Members/{member_id}/Synopsis")
+    if include_biography:
+        sections["biography"] = request_members_api(f"/api/Members/{member_id}/Biography")
+    if include_contact:
+        sections["contact"] = request_members_api(f"/api/Members/{member_id}/Contact", remove_null_values=True)
+    if include_registered_interests:
+        sections["registered_interests"] = request_members_api(f"/api/Members/{member_id}/RegisteredInterests")
+    if include_committee_membership:
+        sections["committee_membership"] = get_member_committees()
     if include_voting_record:
-        async with asyncio.TaskGroup() as tg:
-            member_house = tasks["member"].result()["latestHouseMembership"]["house"]
-            tasks["voting"] = tg.create_task(
-                request_members_api(f"/api/Members/{member_id}/Voting", params={"house": member_house})
-            )
+        member_house = member["latestHouseMembership"]["house"]
+        sections["voting"] = request_members_api(f"/api/Members/{member_id}/Voting", params={"house": member_house})
 
-    # Build result dictionary, handling any exceptions
-    result = {}
-    for key, task in tasks.items():
-        result[key] = task.result()
-
-    return result
+    return {"member": member, **await gather_sections(sections)}
 
 
 @log_tool_call
@@ -199,33 +192,33 @@ async def list_ministerial_roles(
 
     if include_all_minsiters:
         # Junior ministers are included when querying by departmentId
-        posts = []
         departments = await get_departments()
+        department_posts_list = await asyncio.gather(
+            *(
+                request_members_api(f"/api/Posts/{post_type}", params={"departmentId": department["id"]})
+                for department in departments
+            ),
+            return_exceptions=True,
+        )
 
-        tasks = []
-        async with asyncio.TaskGroup() as tg:
-            for department in departments:
-                tasks.append(
-                    (
-                        tg.create_task(
-                            request_members_api(f"/api/Posts/{post_type}", params={"departmentId": department["id"]})
-                        ),
-                        department,
-                    )
-                )
-
-        for task, department in tasks:
-            if department_posts := task.result():
-                party_info = department_posts[0]["postHolders"][0]["member"]["latestParty"]
-                department_posts = clean_posts_list(department_posts)
+        posts = []
+        for department, department_posts in zip(departments, department_posts_list, strict=True):
+            if isinstance(department_posts, BaseException):
+                logger.warning("Posts for department '%s' failed: %s", department["name"], department_posts)
+                continue
+            if department_posts:
+                party_info = party_info or extract_party_info(department_posts)
                 posts.append(
-                    {"department": department["name"], "department_id": department["id"], "posts": department_posts}
+                    {
+                        "department": department["name"],
+                        "department_id": department["id"],
+                        "posts": clean_posts_list(department_posts),
+                    }
                 )
     else:
         posts = await request_members_api(f"/api/Posts/{post_type}")
 
-        if posts:
-            party_info = posts[0]["postHolders"][0]["member"]["latestParty"]
+        party_info = extract_party_info(posts)
 
         posts = clean_posts_list(posts)
 
@@ -237,6 +230,8 @@ async def list_ministerial_roles(
 async def get_departments() -> Any:
     """Get departments"""
     results = await request_members_api("/api/Reference/Departments")
+    # Drop malformed entries so downstream department["id"] lookups stay safe.
+    results = [department for department in results if isinstance(department, dict) and "id" in department]
     # Leader of HM Official Opposition is a special case not returned by the departments API
     results.append({"id": 107, "name": "Leader of HM Official Opposition"})
     return results
