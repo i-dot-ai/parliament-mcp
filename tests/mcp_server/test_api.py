@@ -43,6 +43,8 @@ async def test_list_all_committees(test_mcp_client: MCPServerStreamableHttp):
         (760, {"name": "City of London (Markets) Bill"}),
         # Commons select committee
         (327, {"name": "Public Administration and Constitutional Affairs Committee"}),
+        # Committee with a null `purpose` (must not KeyError)
+        (97, {"name": "Intelligence and Security Committee of Parliament"}),
     ],
 )
 async def test_get_committee_details(test_mcp_client: MCPServerStreamableHttp, committee_id: int, expected: dict):
