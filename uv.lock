@@ -1615,15 +1615,15 @@ transfer-from-es = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = ">=3.12.13" },
+    { name = "aiohttp", specifier = ">=3.13.4" },
     { name = "aiolimiter", specifier = ">=1.2.1" },
     { name = "async-lru", specifier = ">=2.0.5" },
     { name = "boto3", specifier = ">=1.39.10" },
     { name = "boto3", specifier = ">=1.39.12" },
     { name = "chonkie", specifier = ">=1.1.1" },
-    { name = "cryptography", specifier = ">=44.0.1" },
+    { name = "cryptography", specifier = ">=46.0.7" },
     { name = "dateparser", specifier = ">=1.2.1" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.115.13" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.137.0" },
     { name = "fastembed", specifier = ">=0.7.1" },
     { name = "hishel", specifier = ">=0.1.2" },
     { name = "httpx", specifier = ">=0.28.1" },
