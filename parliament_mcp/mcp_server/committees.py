@@ -11,7 +11,7 @@ from mcp.server.fastmcp.server import FastMCP
 
 from parliament_mcp.qdrant_data_loaders import cached_limited_get
 
-from .utils import COMMITTEES_API_BASE_URL, log_tool_call, request_committees_api
+from .utils import COMMITTEES_API_BASE_URL, gather_sections, log_tool_call, request_committees_api
 
 logger = logging.getLogger(__name__)
 
@@ -230,13 +230,15 @@ async def list_all_committees(
 
 async def get_basic_committee_info(committee_id: int):
     response = await request_committees_api(f"/api/Committees/{committee_id}")
+    # request_committees_api strips null fields, so optional ones may be absent.
+    category = response.get("category") or {}
     return {
         "id": response["id"],
         "name": response["name"],
-        "purpose": response["purpose"],
-        "category": response["category"]["name"],
-        "house": response["house"],
-        "subCommittees": [clean_committee_item(sub_committee) for sub_committee in response["subCommittees"]],
+        "purpose": response.get("purpose"),
+        "category": category.get("name"),
+        "house": response.get("house"),
+        "subCommittees": [clean_committee_item(sub_committee) for sub_committee in response.get("subCommittees", [])],
     }
 
 
@@ -299,29 +301,21 @@ async def get_committee_details(
         - committee_business: List of business/inquiries (if requested)
         - upcoming_events: List of upcoming events (if requested)
     """
-    tasks = {}
-    async with asyncio.TaskGroup() as tg:
-        # Always include basic info
-        tasks["basic_committee_info"] = tg.create_task(get_basic_committee_info(committee_id))
-        # Conditionally include other sections
-        if include_members:
-            tasks["members"] = tg.create_task(get_committee_members(committee_id))
-        if include_publications:
-            tasks["publications"] = tg.create_task(get_committee_publications(committee_id))
-        if include_oral_evidence:
-            tasks["oral_evidence"] = tg.create_task(get_committee_oral_evidence(committee_id))
-        if include_written_evidence:
-            tasks["written_evidence"] = tg.create_task(get_committee_written_evidence(committee_id))
-        if include_business:
-            tasks["committee_business"] = tg.create_task(get_committee_business(committee_id))
-        if include_upcoming_events:
-            tasks["upcoming_events"] = tg.create_task(get_committee_events(committee_id, upcoming_only=True))
+    sections = {"basic_committee_info": get_basic_committee_info(committee_id)}
+    if include_members:
+        sections["members"] = get_committee_members(committee_id)
+    if include_publications:
+        sections["publications"] = get_committee_publications(committee_id)
+    if include_oral_evidence:
+        sections["oral_evidence"] = get_committee_oral_evidence(committee_id)
+    if include_written_evidence:
+        sections["written_evidence"] = get_committee_written_evidence(committee_id)
+    if include_business:
+        sections["committee_business"] = get_committee_business(committee_id)
+    if include_upcoming_events:
+        sections["upcoming_events"] = get_committee_events(committee_id, upcoming_only=True)
 
-    # Build result with only requested sections
-    result = {}
-    for key, task in tasks.items():
-        result[key] = task.result()
-    return result
+    return await gather_sections(sections)
 
 
 @log_tool_call

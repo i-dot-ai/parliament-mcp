@@ -1,8 +1,9 @@
+import asyncio
 import functools
 import json
 import logging
 import time
-import traceback
+from collections.abc import Awaitable
 from typing import Any
 
 from pydantic.fields import FieldInfo
@@ -61,7 +62,7 @@ def log_tool_call(func):
                 str_kwargs,
                 execution_time,
             )
-            return f"Error in tool call `{func.__name__}`: {traceback.format_exc()}"
+            raise
         else:
             return result
 
@@ -197,15 +198,39 @@ def clean_posts_list(posts_list: list[dict]) -> list:
     """
     for post in posts_list:
         for field in ["type", "createdWhen", "order", "id", "governmentDepartments"]:
-            if field in post:
-                post.pop(field)
-        for post_holder in post["postHolders"]:
+            post.pop(field, None)
+        for post_holder in post.get("postHolders", []):
             for field in ["isPaid", "thumbnailUrl", "endDate", "layingMinisterName"]:
-                if field in post_holder:
-                    post_holder.pop(field)
-            # member fields
-            for field in ["latestHouseMembership", "latestParty", "nameFullTitle", "nameListAs", "nameAddressAs"]:
-                if field in post_holder["member"]:
-                    post_holder["member"].pop(field)
+                post_holder.pop(field, None)
+            member = post_holder.get("member")
+            if member:
+                for field in ["latestHouseMembership", "latestParty", "nameFullTitle", "nameListAs", "nameAddressAs"]:
+                    member.pop(field, None)
 
     return posts_list
+
+
+def extract_party_info(posts_list: list[dict]) -> dict | None:
+    """Return the ``latestParty`` of the first post holder that has one, or None."""
+    for post in posts_list:
+        for post_holder in post.get("postHolders", []):
+            party = (post_holder.get("member") or {}).get("latestParty")
+            if party is not None:
+                return party
+    return None
+
+
+async def gather_sections(sections: dict[str, Awaitable]) -> dict[str, Any]:
+    """Run named awaitables concurrently, returning only the ones that succeed.
+
+    A failed section is logged and dropped rather than sinking the whole result,
+    so one flaky upstream endpoint can't take out an entire tool call.
+    """
+    results = await asyncio.gather(*sections.values(), return_exceptions=True)
+    output = {}
+    for name, result in zip(sections, results, strict=True):
+        if isinstance(result, BaseException):
+            logger.warning("Section '%s' failed: %s", name, result)
+        else:
+            output[name] = result
+    return output
