@@ -41,11 +41,17 @@ dependencies = [
     "fastapi[standard]>=0.137.0",
     "uvicorn>=0.34.3",
     "chonkie>=1.1.1",
-    "fastembed>=0.7.1",
+    "fastembed>=0.8.0",
     "tenacity>=9.1.2",
     "boto3>=1.39.12",
     "markdownify>=1.2.0",
     "markitdown[docx,pdf,xlsx]>=0.1.3",
+    # Security floors on transitive deps, declared directly so consumers inherit
+    # them. protobuf capped <7 to stay on the safe 6.x line.
+    "pillow>=12.2.0",
+    "lxml>=6.1.0",
+    "protobuf>=6.33.5,<7",
+    "python-multipart>=0.0.27",
 ]
 
 [project.scripts]
