@@ -234,12 +234,15 @@ class QdrantHansardLoader(QdrantDataLoader):
         from_date: str = "2020-01-01",
         to_date: str = "2020-02-10",
     ) -> None:
-        """Load all contribution types concurrently."""
+        """Load all contribution types sequentially.
+
+        Sequential rather than concurrent to keep total in-flight embedding
+        calls bounded; the per-type loader still parallelises pages internally.
+        """
         contribution_types = ["Spoken", "Written", "Corrections", "Petitions"]
         with self.progress_context():
-            async with asyncio.TaskGroup() as tg:
-                for contrib_type in contribution_types:
-                    tg.create_task(self.load_contributions_by_type(contrib_type, from_date, to_date))
+            for contrib_type in contribution_types:
+                await self.load_contributions_by_type(contrib_type, from_date, to_date)
 
     async def load_contributions_by_type(
         self,
