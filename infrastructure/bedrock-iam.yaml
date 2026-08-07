@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM resources for Parliament MCP Bedrock embedding backend
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Description: The Bedrock model identifier (e.g., amazon.titan-embed-text-v2:0)
+  AWSRegion:
+    Type: String
+    Default: eu-west-2
+    Description: AWS region for the Bedrock service
+
+Resources:
+  BedrockEmbeddingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'parliament-mcp-bedrock-${AWS::StackName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockInvokeModelPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWSRegion}::foundation-model/${BedrockModelId}'
+
+Outputs:
+  BedrockRoleArn:
+    Description: ARN of the IAM role for Bedrock access
+    Value: !GetAtt BedrockEmbeddingRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockRoleArn'

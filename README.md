@@ -402,6 +402,69 @@ curl http://localhost:6333/healthz
 make qdrant_health
 ```
 
+## Amazon Bedrock Backend (Alternative)
+
+By default, this project uses Azure OpenAI for generating embeddings. As an alternative, you can use **Amazon Bedrock** with the Titan Embed model. This removes the need for Azure credentials and integrates natively with AWS infrastructure.
+
+### Enabling Bedrock
+
+Set the following environment variables in your `.env` file:
+
+```bash
+EMBEDDING_BACKEND=bedrock
+BEDROCK_EMBEDDING_MODEL_ID=amazon.titan-embed-text-v2:0
+AWS_REGION=eu-west-2  # Already configured by default
+```
+
+When `EMBEDDING_BACKEND=bedrock` is set, the Azure OpenAI variables (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, etc.) are not required.
+
+### AWS Credentials
+
+The Bedrock client uses the standard AWS credential chain. You can provide credentials via any of the following mechanisms:
+
+1. **Environment variables** — Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and optionally `AWS_SESSION_TOKEN`)
+2. **Instance profile** — Automatically available on EC2 instances, ECS tasks, and Lambda functions with an attached IAM role
+3. **IAM role assumption** — Configure a role ARN in your AWS config or use the CloudFormation template below to create a dedicated role
+
+### Docker (local development)
+
+The `docker-compose.yaml` passes AWS credential environment variables into the container automatically. If you have `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` set in your shell (e.g., from `aws sts assume-role`), they'll be available inside the container. This is only needed for local development — when running on AWS (ECS, Lambda, EC2), the instance/task role provides credentials automatically.
+
+Alternatively, you can mount your local AWS config by adding this to the mcp-server service in `docker-compose.yaml`:
+
+```yaml
+volumes:
+  - ~/.aws:/root/.aws:ro
+```
+
+### IAM Permissions
+
+The calling identity needs the `bedrock:InvokeModel` permission scoped to the embedding model:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "bedrock:InvokeModel",
+  "Resource": "arn:aws:bedrock:eu-west-2::foundation-model/amazon.titan-embed-text-v2:0"
+}
+```
+
+### CloudFormation Template
+
+A ready-to-use CloudFormation template is provided at `infrastructure/bedrock-iam.yaml`. It creates an IAM role with least-privilege Bedrock access for ECS tasks and Lambda functions.
+
+Deploy it with:
+
+```bash
+aws cloudformation deploy \
+  --template-file infrastructure/bedrock-iam.yaml \
+  --stack-name parliament-mcp-bedrock \
+  --parameter-overrides BedrockModelId=amazon.titan-embed-text-v2:0 AWSRegion=eu-west-2 \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+The stack outputs the role ARN which you can attach to your ECS task definition or Lambda function.
+
 ## Troubleshooting
 
 ### Common Issues

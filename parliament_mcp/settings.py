@@ -1,9 +1,11 @@
 import logging
 import os
 from functools import lru_cache
+from typing import Literal
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,17 @@ class ParliamentMCPSettings(BaseSettings):
     AWS_ACCOUNT_ID: str | None = None
     AWS_REGION: str = "eu-west-2"
     ENVIRONMENT: str = "local"
+
+    # Embedding backend selection
+    EMBEDDING_BACKEND: Literal["azure_openai", "bedrock"] = "azure_openai"
+    BEDROCK_EMBEDDING_MODEL_ID: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_bedrock_settings(self) -> "ParliamentMCPSettings":
+        if self.EMBEDDING_BACKEND == "bedrock" and not self.BEDROCK_EMBEDDING_MODEL_ID:
+            msg = "BEDROCK_EMBEDDING_MODEL_ID is required when EMBEDDING_BACKEND is set to 'bedrock'"
+            raise ValueError(msg)
+        return self
 
     # Use SSM for sensitive parameters in AWS environments
     @property
