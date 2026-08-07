@@ -20,6 +20,7 @@ from agents.mcp import MCPServerStreamableHttp, MCPServerStreamableHttpParams
 from qdrant_client import AsyncQdrantClient
 from testcontainers.qdrant import QdrantContainer
 
+from parliament_mcp.embedding_client import create_embedding_client
 from parliament_mcp.mcp_server.qdrant_query_handler import QdrantQueryHandler
 from parliament_mcp.openai_helpers import get_openai_client
 from parliament_mcp.qdrant_data_loaders import QdrantHansardLoader, QdrantParliamentaryQuestionLoader
@@ -225,5 +226,5 @@ async def qdrant_cloud_test_client() -> AsyncGenerator[AsyncQdrantClient]:
 
 @pytest.fixture(scope="session")
 async def qdrant_query_handler(qdrant_test_client: AsyncQdrantClient):
-    openai_client = get_openai_client(settings)
-    return QdrantQueryHandler(qdrant_test_client, openai_client, settings)
+    embedding_client = create_embedding_client(settings)
+    return QdrantQueryHandler(qdrant_test_client, embedding_client, settings)
