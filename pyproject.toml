@@ -33,11 +33,11 @@ dependencies = [
     "async-lru>=2.0.5",
     "pydantic-settings>=2.10.0",
     "dateparser>=1.2.1",
-    "pyjwt==2.12.0",
-    "cryptography>=46.0.7",
+    "pyjwt==2.13.0",
+    "cryptography==49.0.0+aikido.1",
     "aiolimiter>=1.2.1",
     "sentry-sdk>=2.18.0",
-    "mcp[cli]>=1.26.0",
+    "mcp[cli]==1.28.1",
     "fastapi[standard]>=0.137.0",
     "uvicorn>=0.34.3",
     "chonkie>=1.1.1",
@@ -46,7 +46,26 @@ dependencies = [
     "boto3>=1.39.12",
     "markdownify>=1.2.0",
     "markitdown[docx,pdf,xlsx]>=0.1.3",
+    "anyio==4.14.2",
+    "pillow==12.3.0",
+    "huggingface-hub==1.26.0",
+    "soupsieve==2.8.4",
+    "fsspec==2026.6.0",
+    "tokenizers==0.23.1",
+    "requests==2.34.0",
+    "numpy==2.4.5",
+    "h2==4.4.1",
+    "onnxruntime==1.24.2",
+    "urllib3==2.7.0",
+    "pygments==2.20.0",
+    "idna==3.15",
+    "markdown-it-py==4.1.0",
 ]
+
+[[tool.uv.index]]
+name = "aikido-pypi-repo"
+url = "https://pypi.aikido.io/97f0f5b2fc3054b55dd9"
+explicit = true
 
 [project.scripts]
 parliament-mcp = "parliament_mcp.cli:main"
@@ -163,3 +182,22 @@ filterwarnings = [
     "ignore:websockets.legacy is deprecated:DeprecationWarning",
     "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
 ]
+
+[tool.uv.sources]
+anyio = { index = "aikido-pypi-repo" }
+pillow = { index = "aikido-pypi-repo" }
+huggingface-hub = { index = "aikido-pypi-repo" }
+cryptography = { index = "aikido-pypi-repo" }
+mcp = { index = "aikido-pypi-repo" }
+soupsieve = { index = "aikido-pypi-repo" }
+pyjwt = { index = "aikido-pypi-repo" }
+fsspec = { index = "aikido-pypi-repo" }
+tokenizers = { index = "aikido-pypi-repo" }
+requests = { index = "aikido-pypi-repo" }
+numpy = { index = "aikido-pypi-repo" }
+h2 = { index = "aikido-pypi-repo" }
+onnxruntime = { index = "aikido-pypi-repo" }
+urllib3 = { index = "aikido-pypi-repo" }
+pygments = { index = "aikido-pypi-repo" }
+idna = { index = "aikido-pypi-repo" }
+markdown-it-py = { index = "aikido-pypi-repo" }
